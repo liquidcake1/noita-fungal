@@ -96,11 +96,29 @@ shifts.forEach(function(shift){
   console.log("");
 });
 state = {};
-let constraints = {"Diamond": "Healthium", "Flammable Gas": "Healthium"};
+let constraints = {"Diamond": "Healthium", "Flammable Gas": "Healthium", "Urine": "Void Liquid"};
 let constraints_from = new Set(Object.keys(constraints));
 let constraints_to = new Set(Object.values(constraints));
 let loops = 0;
+let used_shifts = [];
+let best_shifts = undefined;
+
 function recurse_search(state, shifts) {
+  if (best_shifts && used_shifts.length >= best_shifts.length) {
+    return;
+  }
+  let satisfied = true;
+  Object.entries(constraints).forEach(function(constraint) {
+    if (state[constraint[0]] != constraint[1]) {
+      satisfied = false;
+    }
+  });
+  if (satisfied) {
+    console.log("Found sequence:", used_shifts)
+    print_state(state, "  ");
+    best_shifts = new Array(...used_shifts);
+    return;
+  }
   loops += 1;
   if (shifts.length == 0) {
     return;
@@ -113,7 +131,9 @@ function recurse_search(state, shifts) {
       shift["from"].forEach(function(from){
         new_state = run_shift(new_state, from, to_material);
       });
+      used_shifts.push(to_material);
       recurse_search(new_state, remaining_shifts);
+      used_shifts.pop()
     });
   } else if (shift["from_held"]) {
     constraints_from.forEach(function(from_material) {
@@ -126,14 +146,25 @@ function recurse_search(state, shifts) {
         }
       });
       if (abort) return;
+      used_shifts.push(from_material);
       recurse_search(new_state, remaining_shifts);
+      used_shifts.pop();
     });
   }
   let plain_state = state;
   shift["from"].forEach(function(from){
     plain_state = run_shift(plain_state, from, shift["to"][0]);
   });
+  used_shifts.push(undefined);
   recurse_search(plain_state, remaining_shifts);
+  used_shifts.pop()
 }
 recurse_search(state, shifts);
 console.log(loops)
+
+
+// OK, three constraints will take until the heat death of the universe due to high branch factor.
+//
+// We could:
+//   * Work form the end backwards, trying to simplify.
+//
