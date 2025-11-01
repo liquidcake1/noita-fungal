@@ -254,6 +254,9 @@ function clever_search(constraints_list, shifts, held_materials) {
           constraints_list.splice(0, 0, new_constraint);
           if (use_held) {
             held_materials.push([i, constraint.from]);
+          } else if (old_from_held) {
+            // We must hold nothing.
+            held_materials.push([i, undefined]);
           }
           // BUG-1 we need to make sure we don't go and ruin a precondition a
           // previous constraint needed in a shift we've not yet reached.
