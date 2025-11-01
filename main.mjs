@@ -1,21 +1,4 @@
 let state = {};
-let materials = [
-	"Worm Blood",
-	"Water",
-	"Pheromone",
-	"Poison",
-	"Polymorphine",
-	"Ambrosia",
-	"Lava",
-];
-let shifts = [
-  ["Pheromone", "Poison"],
-  ["Water", "Pheromone"],
-  ["Pheromone", "Ambrosia"],
-  ["Poison", "Polymorphine"],
-  ["Polymorphine", "Lava"],
-  ["Worm Blood", "Water"],
-];
 function run_shift(state, from, to) {
   let new_state = Object.fromEntries(Object.entries(state));
   new_state[from] = state[to] || to;
@@ -45,60 +28,41 @@ function print_state2(state, indent) {
   console.log("");
 });*/
 
-let test_data = "1	\nFungus Blood\nWeird Fungus\nFungal Soil\n	→	\n?\nHeld Material\nGold\n→\nSilver\nDivine Ground\n→\nGrass\nSima\n	\n2	\nFungus Blood\nWeird Fungus\nFungal Soil\n	→	\n?\nHeld Material\nGold\n→\nToxic Meat\nDivine Ground\n→\nGrass\nLava\n	\n3	\n?\nHeld Material\nWater\nBrine\nChilly Water\n	→	\nWeird Fungus\n	\n4	\n?\nHeld Material\nFlammable Gas\nPoison Gas\nFungal Gas\nToxic Gas\n	→	\nVomit\n	\n5	\nAcid\n	→	\n?\nHeld Material\nGold\n→\nSilver\nDivine Ground\n→\nGrass\nFungus Blood\n	\n6	\n?\nHeld Material\nToxic Sludge\nPoison\nOminous Liquid\n	→	\nAcid\n	\n7	\nOil\nSwamp\nPeat\n	→	\n?\nHeld Material\nGold\n→\nSilver\nDivine Ground\n→\nGrass\nWorm Blood\n	\n8	\nFungus Blood\nWeird Fungus\nFungal Soil\n	→	\nWhiskey\n	\n9	\nBlood\n	→	\nFlummoxium\n	\n10	\n?\nHeld Material\nSnow\n	→	\nRock\n	\n11	\nSilver\nBrass\nCopper\n	→	\n?\nHeld Material\nGold\n→\nExcrement\nDivine Ground\n→\nGrass\nFungus Blood\n	\n12	\nOil\nSwamp\nPeat\n	→	\nWater\n	\n13	\n?\nHeld Material\nWater\nBrine\nChilly Water\n	→	\nToxic Rock\n	\n14	\n?\nHeld Material\nSnow\n	→	\nFungus Blood\n	\n15	\n?\nHeld Material\nToxic Sludge\nPoison\nOminous Liquid\n	→	\nWhiskey\n	\n16	\nBlood\n	→	\n?\nHeld Material\nGold\n→\nExcrement\nDivine Ground\n→\nGrass\nOil\n	\n17	\nLava\n	→	\n?\nHeld Material\nGold\n→\nBrass\nDivine Ground\n→\nGrass\nFungus Blood\n	\n18	\nOil\nSwamp\nPeat\n	→	\nSand\n	\n19	\nFlammable Gas\nPoison Gas\nFungal Gas\nToxic Gas\n	→	\n?\nHeld Material\nGold\n→\nPea Soup\nDivine Ground\n→\nGrass\nToxic Rock\n	\n20	\n?\nHeld Material\nSnow\n	→	\nSima ";
-test_data = test_data.split("\n");
-let seed_shifts = [];
-let parse_state = {"state": 0};
-shifts = [];
-state = {};
-String.prototype.strip = function (){
-  return this.replace(/[ \t]*$|^[ \t]/g, "");
-}
-for(let i=0; i<test_data.length; i++) {
-  let line = test_data[i];
-  if (parse_state["state"] == 0 && line[0] >= '0' && line[1] <= '9') {
-    parse_state["shift"] = {};
-    parse_state["state"] = 1;
-  } else if (parse_state["state"] == 1) {
-    if (line == "?") {
-      if (test_data[i+1] != "Held Material") {
-        console.log("Unexpected held line", test_data[i]);
-      }
-      i += 2;
-      parse_state["shift"]["from_held"] = true;
-    }
-    parse_state["shift"]["from"] = [test_data[i]];
-    i += 1;
-    while (test_data[i] != "	→	" && test_data[i] !== undefined) {
-      parse_state["shift"]["from"].push(test_data[i]);
-      i += 1;
-    }
-    parse_state["state"] = 2;
-  } else if (parse_state["state"] == 2) {
-    if (line == "?") {
-      if (test_data[i+1] != "Held Material") {
-        console.log("Unexpected held line", test_data[i]);
-      }
-      i += 8;
-      parse_state["shift"]["to_held"] = true;
-    }
-    parse_state["shift"]["to"] = [test_data[i].strip()];
-    i += 1;
-    while (test_data[i] != "	" && test_data[i] !== undefined) {
-      parse_state["shift"]["to"].push(test_data[i]);
-      i += 1;
-    }
-    parse_state["state"] = 0;
-    if (parse_state["shift"]) {
-      if (parse_state.shift.to.length != 1) {
-        console.log("Ouch");
-      }
-      parse_state.shift.i = shifts.length;
-      parse_state.shift.to = parse_state.shift.to[0];
-      shifts.push(parse_state["shift"]);
-      //console.log(parse_state["shift"]);
-    }
+/*
+ * Adding this to fungal.cpp from noita-tools:
++int random_nexti(const uint ws, random_pos& rnd, const double min, const double max) {
++       g_rng.SetRandomSeed(ws, rnd.x, rnd.y);
++       const auto proc_result = g_rng.Random((int)RoundHalfOfEven(min), (int)RoundHalfOfEven(max));
++        rnd.y += 1;
++        return proc_result;
++}
+ * Then in noita-tools/src/services/SeedInfo/infoHandler/InfoProviders/FungalShift/:
+ * em++ fungal.cpp --std=c++20 -lembind -o noita_fungal.js -s EXPORT_ES6=1 -s MODULARIZE=1
+ * Now grab noita_fungal.{wasm,js}.
+ * This generates about 400KB of crap, but does give us our fungal shifts.
+ */
+
+//import * as noita_fungal from "./noita_fungal.js";
+//const { PickForSeed } = noita_fungal;
+var noita_fungal_import = await import("./noita_fungal.js");
+var noita_fungal = await noita_fungal_import.default();
+let test_data_raw = noita_fungal.PickForSeed(2, 20);
+let shifts = [];
+for(var i=0; i<test_data_raw.size(); i++) {
+  let shift_c = test_data_raw.get(i);
+  let shift_from = [];
+  for(var j=0; j<shift_c["from"].size(); j++) {
+    shift_from.push(shift_c["from"].get(j));
   }
+  let shift = {
+    "from": shift_from,
+    "to": shift_c.to,
+    "from_held": shift_c.flaskFrom,
+    "to_held": shift_c.flaskTo,
+    // TODO greed (gold_to_x, grass_to_x)
+  };
+  console.log(shift);
+  shifts.push(shift);
 }
 // TODO : Check that shifts are not overwritten before use
 //shifts[1].to_held = false;
@@ -108,29 +72,21 @@ shifts.forEach(function(shift){
   shift["from"].forEach(function (from) {
     state = run_shift(state, from, shift["to"]);
   });
-  //console.log(`After shifting ${shift["from"][0]} into ${shift["to"][0]}:`);
-  //print_state(state, "  ");
-  //console.log("");
+  console.log(`After shifting ${shift["from"][0]} into ${shift["to"]}:`);
+  print_state(state, "  ");
+  console.log("");
 });
 state = {};
 let full_constraints_list = [
   {
-    "from": "Diamond",
-    "to": "Healthium",
+    "from": "diamond",
+    "to": "healthium",
     // min_shift
     // max_shift
   },
   {
-    "from": "Flammable Gas",
-    "to": "Healthium",
-  },
-  {
-    "from": "Urine",
-    "to": "Void Liquid",
-  },
-  {
-    "from": "Water",
-    "to": "Sima",
+    "from": "magic_liquid_charm",
+    "to": "healthium",
   },
 ];
 
