@@ -1,4 +1,3 @@
-let state = {};
 function run_shift(state, from, to) {
   let new_state = Object.fromEntries(Object.entries(state));
   new_state[from] = state[to] || to;
@@ -44,56 +43,41 @@ function print_state2(state, indent) {
 
 var noita_fungal_import = await import("./noita_fungal.js");
 var noita_fungal = await noita_fungal_import.default();
-let test_data_raw = noita_fungal.PickForSeed(2, 20);
-let shifts = [];
-for(var i=0; i<test_data_raw.size(); i++) {
-  let shift_c = test_data_raw.get(i);
-  let shift_from = [];
-  for(var j=0; j<shift_c["from"].size(); j++) {
-    shift_from.push(shift_c["from"].get(j));
+function load_shifts_for_seed(seed) {
+  let test_data_raw = noita_fungal.PickForSeed(seed, 20);
+  let shifts = [];
+  for(var i=0; i<test_data_raw.size(); i++) {
+    let shift_c = test_data_raw.get(i);
+    let shift_from = [];
+    for(var j=0; j<shift_c["from"].size(); j++) {
+      shift_from.push(shift_c["from"].get(j));
+    }
+    let shift = {
+      "from": shift_from,
+      "to": shift_c.to,
+      "held": shift_c.flaskFrom ? "from" : shift_c.flaskTo ? "to" : null,
+      "from_held": shift_c.flaskFrom,
+      "to_held": shift_c.flaskTo,
+      // TODO greed (gold_to_x, grass_to_x)
+    };
+    // Store the original state so that we can mess with it later.
+    shift.original = {"held": shift.held, "from": shift.from, "to": shift.to};
+    shifts.push(shift);
   }
-  let shift = {
-    "from": shift_from,
-    "to": shift_c.to,
-    "held": shift_c.flaskFrom ? "from" : shift_c.flaskTo ? "to" : null,
-    "from_held": shift_c.flaskFrom,
-    "to_held": shift_c.flaskTo,
-    // TODO greed (gold_to_x, grass_to_x)
-  };
-  console.log(shift);
-  // Store the original state so that we can mess with it later.
-  shift.original = {"held": shift.held, "from": shift.from, "to": shift.to};
-  shifts.push(shift);
+  return shifts;
 }
 // TODO : Check that shifts are not overwritten before use
 //shifts[1].to_held = false;
 //shifts[1].from = [ "Fake" ];
 //console.log(shifts);
-shifts.forEach(function(shift){
+/*shifts.forEach(function(shift){
   shift["from"].forEach(function (from) {
     state = run_shift(state, from, shift["to"]);
   });
   //console.log(`After shifting ${shift["from"][0]} into ${shift["to"]}:`);
   //print_state(state, "  ");
   console.log("");
-});
-state = {};
-let full_constraints_list = [
-  {
-    "from": "acid",
-    "to": "oil",
-    // min_shift
-    // max_shift
-  },
-  {
-    "from": "oil",
-    "to": "acid",
-  },
-];
-
-var shortest = {
-  "count": 21,
-};
+});*/
 
 function print_helds(held_materials, shifts, after) {
   let state = {};
@@ -142,7 +126,7 @@ function check_solved(shifts, constraints_list, max_shifts) {
     }
     var correct = true;
     for (var constraint of full_constraints_list) {
-      if ((state[constraint.from] || constraint.from) != constraint.to) {
+      if (!constraint_satisfied(state, constraint)) {
         correct = false;
         break;
       }
@@ -152,6 +136,18 @@ function check_solved(shifts, constraints_list, max_shifts) {
     }
   }
   return undefined;
+}
+
+function constraint_satisfied(state, constraint) {
+  let state_to = state[constraint.from] || constraint.from;
+  if (state_to != constraint.to) {
+    return false;
+  }
+  if (constraint.stain === undefined) {
+    return true;
+  }
+  let state_stain = state[state_to] || state_to;
+  return state_stain == constraint.stain;
 }
 
 function get_shift_from_helds(shift, constraint) {
@@ -217,10 +213,10 @@ function uncommit_shift(shift, shift_held, held_materials, i) {
   held_materials[i] = undefined;
 }
 
-function clever_search(constraints_list, shifts, held_materials) {
+function clever_search(orig_constraints_list, constraints_list, shifts, held_materials, shortest) {
   //console.log(`clever_search(${constraints_list.map(x=>"{"+Object.entries(x)+"}")}, shifts, ${held_materials})`);
   if (constraints_list.length == 0) {
-    let ret = check_solved(shifts, constraints_list, shortest.count);
+    let ret = check_solved(shifts, orig_constraints_list, shortest.count);
     if (ret !== undefined) {
       if (shortest.count > ret.length) {
         print_solution(held_materials, ret.state, shifts, ret.length);
@@ -243,54 +239,125 @@ function clever_search(constraints_list, shifts, held_materials) {
   } else {
     max_shift = constraint.max_shift;
   }
+  if (max_shift > shortest.count) {
+    max_shift = shortest.count;
+  }
   var state = {};
-  for(var i = min_shift; i <= max_shift; i++) {
+  let can_skip = false;
+  for(var i = 0; i <= max_shift; i++) {
     var shift = shifts[i];
+    if (i >= min_shift || true) {
+      var shift_from_helds = get_shift_from_helds(shift, constraint);
 
-    var shift_from_helds = get_shift_from_helds(shift, constraint);
-
-    for(let shift_held of shift_from_helds) {
-      commit_shift(shift, constraint, shift_held, held_materials, i);
-      // This shift could be useful to satisfy our constraint.
-      //console.log("Viable", constraint, i, shift, shift_from_held);
-      let shift_to = state[shift.to] || shift.to;
-      if (shift_to == constraint.to) {
-        // This shift will fully satisfy our constraint.
+      for(let shift_held of shift_from_helds) {
+        commit_shift(shift, constraint, shift_held, held_materials, i);
+        // This shift could be useful to satisfy our constraint.
+        //console.log("Viable", constraint, i, shift, shift_from_held);
+        if (constraint.stain !== undefined) {
+          let stain_constraint = {
+            "from": constraint.to,
+            "to": constraint.stain,
+            "min_shift": i + 1,
+            "max_shift": shifts.length - 1,
+          }
+          constraints_list.splice(0, 0, stain_constraint);
+        }
+        let shift_to = state[shift.to] || shift.to;
+        if (shift_to != constraint.to) {
+          // This shift might satisfy our constraint if something earlier were to have prepped our shift.
+          // It's actually OK for our source material to have been shifted; we
+          // can just hold the (transformed) material.
+          var new_constraint = {
+            "from": shift.to,
+            "to": constraint.to,
+            "min_shift": 0,
+            "max_shift": i - 1,
+          };
+          //console.log(new_constraint);
+          constraints_list.splice(0, 0, new_constraint);
+        }
         // BUG-1 we need to make sure we don't go and ruin a precondition a
         // previous constraint needed in a shift we've not yet reached.
-        clever_search(constraints_list, shifts, held_materials);
-      } else {
-        // This shift might satisfy our constraint if something earlier were to have prepped our shift.
-        // It's actually OK for our source material to have been shifted; we
-        // can just hold the (transformed) material.
-        var new_constraint = {
-          "from": shift.to,
-          "to": constraint.to,
-          "min_shift": 0,
-          "max_shift": i - 1,
-        };
-        //console.log(new_constraint);
-        constraints_list.splice(0, 0, new_constraint);
-        // BUG-1 we need to make sure we don't go and ruin a precondition a
-        // previous constraint needed in a shift we've not yet reached.
-        clever_search(constraints_list, shifts, held_materials);
+        clever_search(orig_constraints_list, constraints_list, shifts, held_materials, shortest);
         // Fix
-        constraints_list.splice(0, 1);
+        if (shift_to != constraint.to) {
+          constraints_list.splice(0, 1);
+        }
+        if (constraint.stain !== undefined) {
+          constraints_list.splice(0, 1);
+        }
+        uncommit_shift(shift, shift_held, held_materials, i);
       }
-      uncommit_shift(shift, shift_held, held_materials, i);
     }
-    if (shift.held == "from") {
-      // Without from_held, we must shift this material to something. With it,
-      // we'll assume something irrelevant was held.
-      state[shift.from] = state[shift.to] || shift.to;
+    state[shift.from] = state[shift.to] || shift.to;
+    if (!can_skip && constraint_satisfied(state, constraint)) {
+      can_skip = true;
+      clever_search(orig_constraints_list, constraints_list, shifts, held_materials, shortest);
     }
   }
   constraints_list.splice(0, 0, constraint);
 }
-let held_materials = [];
-held_materials[19] = undefined;
+
+
+
+let full_constraints_list = [
+  {
+    "from": "acid",
+    "to": "sand",
+    //"stain": "sand",
+    //"stain": "oil",
+    // min_shift
+    // max_shift
+  },
+  {
+    "from": "oil",
+    "to": "acid",
+    //"stain": "oil",
+    // min_shift
+    // max_shift
+  },
+  {
+    "from": "sand",
+    "to": "oil",
+  },
+  /*{
+    "from": "lava",
+    "to": "oil",
+  },*/
+];
+
+// shift, shift, NG, NG, shift, NG, shift, ...
 console.log("Constraints:", full_constraints_list);
-clever_search(new Array(...full_constraints_list), shifts, held_materials);
+var seed = 192058036;
+var shortest_best = 21;
+for(let ng=0; ng<28; ng++) {
+  console.log("Searching seed", seed, "+", ng);
+  let shifts = load_shifts_for_seed(seed + ng);
+  let shifts2 = load_shifts_for_seed(seed + ng + 1);
+  for(let shift_nr=0; shift_nr<20; shift_nr++) {
+    let combined_shifts = new Array(...shifts.slice(0, shift_nr), ...shifts2.slice(shift_nr));
+    let froms = 0;
+    let tos = 0;
+    for(let shift of combined_shifts) {
+      if(shift.held == "from") {
+        froms += 1;
+      } else if (shift.held == "to") {
+        tos += 1;
+      }
+    }
+    console.log("Searching ng+ after", shift_nr, "with", froms, "froms and", tos, "tos");
+    let held_materials = [];
+    held_materials[19] = undefined;
+    var shortest = {
+      "count": shortest_best,
+    };
+    clever_search(full_constraints_list, new Array(...full_constraints_list), combined_shifts, held_materials, shortest);
+    if (shortest.count < 21) {
+      console.log("Solved!");
+      shortest_best = shortest.count;
+    }
+  }
+}
 
 // OK, three constraints will take until the heat death of the universe due to high branch factor.
 //
@@ -298,7 +365,7 @@ clever_search(new Array(...full_constraints_list), shifts, held_materials);
 //   * Find a shift S where A could be the source.
 //   * Find a sequence of shifts which make the target of S into B.
 //   * If no requirement of second order, stop.
-//   * If second order equals first (ie. unbroken), ensure no later shift shifts B.
+//   (*) If second order equals first (ie. unbroken), ensure no later shift shifts B.
 //   * If second order has other requirement (ie. broken), ensure some later shift shifts B.
 // Just do a backtracking search through possible candidates.
 //
