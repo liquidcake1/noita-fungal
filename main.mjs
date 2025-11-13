@@ -289,6 +289,10 @@ function clever_search(orig_constraints_list, constraints_list, shifts, held_mat
         uncommit_shift(shift, shift_held, held_materials, i);
       }
     }
+    // TODO this is not correct.
+    // We can "protect" the from material, optionally. We don't test this.
+    // We don't need to consider any other "from" material other than a sacrifice.
+    // If we held a list of "forced" shifts, we could log which materials were rescuable.
     state[shift.from] = state[shift.to] || shift.to;
     if (!can_skip && constraint_satisfied(state, constraint)) {
       can_skip = true;
@@ -302,24 +306,24 @@ function clever_search(orig_constraints_list, constraints_list, shifts, held_mat
 
 let full_constraints_list = [
   {
-    "from": "acid",
-    "to": "sand",
+    "from": "magic_liquid_polymorph",
+    "to": "magic_liquid_random_polymorph",
     //"stain": "sand",
     //"stain": "oil",
     // min_shift
     // max_shift
   },
   {
-    "from": "oil",
-    "to": "acid",
+    "from": "magic_liquid_random_polymorph",
+    "to": "magic_liquid_unstable_polymorph",
     //"stain": "oil",
     // min_shift
     // max_shift
   },
   {
-    "from": "sand",
-    "to": "oil",
-  },
+    "from": "magic_liquid_unstable_polymorph",
+    "to": "magic_liquid_polymorph",
+}
   /*{
     "from": "lava",
     "to": "oil",
@@ -328,7 +332,7 @@ let full_constraints_list = [
 
 // shift, shift, NG, NG, shift, NG, shift, ...
 console.log("Constraints:", full_constraints_list);
-var seed = 192058036;
+var seed = 224362081;
 var shortest_best = 21;
 for(let ng=0; ng<28; ng++) {
   console.log("Searching seed", seed, "+", ng);
@@ -355,17 +359,281 @@ for(let ng=0; ng<28; ng++) {
     if (shortest.count < 21) {
       console.log("Solved!");
       shortest_best = shortest.count;
+      break;
+    }
+  }
+    if (shortest.count < 21) {
+      break;
+    }
+}
+
+/*
+
+class Constraint {
+  base = null;
+  target = null;
+  after = null;
+  constructor(base, target, after) {
+    this.base = base;
+    this.target = target;
+    if (after) {
+      this.after = after;
     }
   }
 }
 
-// OK, three constraints will take until the heat death of the universe due to high branch factor.
+let constraints = [
+  new Constraint(
+    "lava",
+    "acid",
+    //"stain": "sand",
+    //"stain": "oil",
+    // min_shift
+    // max_shift
+  ),
+  new Constraint(
+    "acid",
+    "magic_liquid_polymorph",
+    //"stain": "oil",
+    // min_shift
+    // max_shift
+  ),
+  new Constraint(
+    "magic_liquid_polymorph",
+    "lava",
+    "foo",
+  ),// foo -> magic_liquid_polymorph -> lava
+];
+
+
+class QueueElement {
+  shift = 20;
+  ng = 28;
+  constraints = [];
+  helds = [];
+  constructor(shift, ng, constraints, helds) {
+    this.shift = shift;
+    this.ng = ng;
+    this.constraints = constraints;
+    if (helds) {
+      this.helds = helds;
+    }
+  }
+}
+
+class Held {
+  shift = null;
+  ng = null;
+  material = null;
+  constructor(shift, ng, material) {
+    this.shift = shift;
+    this.ng = ng;
+    this.material = material;
+  }
+}
+
+let queue = [];
+for(let ng=3; ng>=0; ng--) {
+  for(let shift=12; shift>=0; shift--) {
+    queue.push(new QueueElement(shift, ng, constraints));
+  }
+}
+
+var seed = 1998845907;
+let shifts = [];
+for(let ng=0; ng<28; ng++) {
+  shifts.push(load_shifts_for_seed(seed + ng));
+}
+
+function get_helds(shift, constraint) {
+  if (shift.from.includes(constraint.from)) {
+    if (shift.held == "from") {
+      // If shift.from.includes(constraint.from) then we may be able to use a
+      // non-held shift to satisfy another constraint. We should try both
+      // with and without this modification.
+      return [null, "from"];
+    } else {
+      // Otherwise, to use this to satisfy our constraint, we _must_ hold the
+      // material.
+      return ["from"];
+    }
+  }
+  return [];
+}
+
+function search(queue, item, shifts) {
+  console.log(item);
+  let shift = shifts[item.ng][item.shift];
+  for(let i=0; i<item.constraints.length; i++) {
+    let constraint = item.constraints[i];
+    let new_constraints = new Array(...item.constraints.slice(0, i), ...item.constraints.slice(i+1));
+    let helds = get_shift_from_helds(shift, constraint);
+    for(let held of helds) {
+      let new_helds = new Array(...item.helds);
+      new_helds.push(new Held(item.shift, item.ng, constraint.target));
+      if (constraint.after !== null) {
+        new_constraints.push(new Constraint(constraint.base, constraint.after));
+      }
+      // TODO this will push many things, maybe we can keep queue size down?!??!
+      for(let ng_no=item.ng; ng_no>=0; ng_no--) {
+        for(let shift_no=item.shift - 1; shift_no>=0; shift_no--) {
+          queue.push(new QueueElement(shift_no, ng_no, new_constraints));
+        }
+      }
+    }
+  }
+}
+
+function check(constraints, shifts, helds, current_ng, next_shift, state) {
+  let held = helds[0];
+  if(held.ng == current_ng) {
+    ng_hops = [held.shift+1];
+  } else if (held.ng == current_ng + 1) {
+    ng_hops = [];
+    for(let shift=next_shift; shift<=held.shift; shift++) {
+      ng_hops.append(shift);
+    }
+  } else {
+    console.log("2 NG hops!!!!");
+    return false;
+  }
+  for(let ng_hop of ng_hops) {
+    let new_state = Object.assign({}, state);
+    for(let shift_no=next_shift; shift_no<held.shift; shift_no++) {
+      let ng_no = shift_no < ng_hop ? current_ng : current_ng + 1;
+      let shift = shifts[ng_no][shift_no];
+      if (shift.held === null) {
+        base = shift.base;
+        target = shift.target;
+      } else {
+        if (shift_no != held.shift) {
+          console.log("Stray held shift");
+        }
+
+    check(constraints, shifts, helds.slice(1), held.ng, held.shift, new_state);
+  }
+}
+
+while(queue.length > 0) {
+  let item = queue.pop();
+  if (item.constraints.length == 0) {
+    // Check if solved.
+    check(constraints, shifts, item.helds);
+  } else {
+    search(queue, item, shifts);
+  }
+}*/
+
+
+// OK, so new plan, with aim of a non-recursive solution:
+// 
+// * Start with a list of constraints Constraints, n=20, ng=28.
+// * (Check that Constraints is self-consistent -- if it has stain constraints,
+// these must not contradict any other constraints.)
+// * There must be a shift Shift with Shift.ng<=ng, Shift.n<=n which satisfies
+// the last constraint. For each possible shift:
+// * Filter Constraints to just Unstatisfied constraints based on choices made so far.  // THIS IS WRONG. WE HAVE NOT COMMITTED ANY CHOICES.
+// * Find the subset Candidates of Unsatisfied that could have been satisfied by Shift.
+// * For each Constraint in Candidates:
+// * Pick a means of using Shift to satisfy, locking Shift.
+// * If Constraint has a stain, the shift must satisfy to -> stain. Delete
+// stain from Constraint in NewConstraints.
+// * If Constraint has no stain, delete it from NewConstraints.
+// * If NewConstraints is empty, we have a solution.
+// * If NewConstraints is non-empty, add to the queue with n=Shift.n-1, ng=Shift.ng.
 //
-// For each constraint A -> B:
-//   * Find a shift S where A could be the source.
-//   * Find a sequence of shifts which make the target of S into B.
-//   * If no requirement of second order, stop.
-//   (*) If second order equals first (ie. unbroken), ensure no later shift shifts B.
-//   * If second order has other requirement (ie. broken), ensure some later shift shifts B.
-// Just do a backtracking search through possible candidates.
+// The ordering on which of the 20*29 candidates for Shift decides which
+// solutions are found first. Searching earlier shifts first guarantees shorter
+// solutions first.
 //
+// Worst branch factor is about 600 raised to the constraint count.
+//
+//
+//
+// OK, so new new plan.
+// * There must be a shift Shift which satisfies a first constraint which is not subsequently broken (if it were subsequently broken, it must be re-fixed in a later shift, which would be a candidate here). That is, there must be a constraint Constraint, and a shift Shift after which Constraint is _always_ satisfied.
+// * Pick the Shift and pick the Constraint, and then conspire to ensure the Constraint is met. We'll need to check every such conspiracy. We can check that we don't delete the target/stain of any constraint in the process (it's OK to destroy it if something else is shifted to it).
+// * If Shift has a stain, replace Shift its stain component, else delete it.
+// * Fixing the solution for Shift, search the remaining shifts for another Constraint, recursively.
+// * Optimisation: We may be able to avoid fully specifying the Conspiracy so that irrelevant parts of it may be used to satisfy later constraints. This means we can generate fewer queue items for our first Shift/Constraint pair which lowers the complexity. Irrelevant means "does not need to have a from material required as a to material".
+// * The algorithm to find Conspiracies is basically the original one.
+//
+//
+// Notes on secondary shifts:
+// * By holding X(transformed) on an X->held when X->something, we can make X->X.
+
+/*class Commitment {
+  shift_no = null;
+  ng_no = null;
+  held_material = null;
+  constructor(shift_no, ng_no, held_material) {
+    this.shift_no = shift_no;
+    this.ng_no = ng_no;
+    this.held_material = held_material;
+  }
+}
+
+class Job {
+  // Our job
+  shift_no = null;
+  ng_no = null;
+  constraint = null;
+  // State from previous jobs
+  used_to_materials = {}; // mat -> needed_at; may not destroy before.
+  commitments = []; // idx -> (undefined, Commitment)
+  state = {};
+  possible_rev_states = {}; // inverse of 
+  constructor(shift_no, ng_no, constraint, used_to_materials, commitments) {
+    this.shift_no = shift_no;
+    this.ng_no = ng_no;
+    this.constraint = constraint;
+    this.used_to_materials = used_to_materials;
+    this.commitments = commitments;
+  }
+}
+
+function satisfy_constraint_with_shift(shifts, job, queue) {
+  // First, can we satisfy this constraint with this shift?
+  if (shift.held !== "from" && !shift.from.includes(job.constraint.base)) {
+    // If we're not able to shift our material, then we're screwed.
+    return;
+  }
+  // First, does our target material even exist?
+  // Perhaps we should do this elsewhere.
+  if (job.state[job.constraint.target] !== null && job.possible_rev_states[job.constraint.target] === null) {
+    // No.
+    return;
+  }
+  // Next, is the base target of the shift something which could be our target?
+  if (job.state[shift.to] === null && shift.to == job.constraint.target) {
+    // No held shift to an unshifted material.
+    // Cool. We'll need to commit to not modifying the base material.
+  }
+  if (job.possible_states[shift.to].includes(job.constraint.target)) {
+    // No held shift to a shifted-away material that can be naturally stored elsewhere.
+    // These will pre-generate a broken shift.
+    // Also cool. We'll need to commit to whatever's needed to make sure the material is in the right place.
+    // We must do this in addition to the plain variety -- it's possible something else will ruin our base shift while preserving an alternative route.
+    // If there are many routes, I guess we need to check them all??
+    // There likely will be if there are many free "to held" shifts.
+  }
+  if (job.possible_rev_states["held"]) {
+    // No-held shift to a shifted-away material that can be held-stored elsewhere.
+    // These will pre-generate a broken shift.
+    // There are free "held" shifts. We'll need to iterate all of them and commit the one we use.
+  }
+  if (shift.held == "to" && job.state[job.constraint.target] === null) {
+    // We can commit to not messing with this material.
+  }
+  if (shift.held == "to" && job.possible_rev_states[job.constraint.target]) {
+    // Held shift to a shifted-away material that can be naturally stored elsewhere.
+    // These will pre-generate a broken shift.
+    // We can commit this shift and whatever is needed to get here.
+  }
+  if (shift.held == "to" && job.possible_rev_states["held"]) {
+    // Held shift to a shifted-away material that can be held-stored elsewhere.
+    // These will pre-generate a broken shift.
+    // There are free "held" shifts. We'll need to iterate all of them and commit the one we use, in turn.
+  }
+  // How hard is job.state and job.possible_states to maintain?
+}*/
