@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<script language="javascript" type="module">
+			import { run_queue_step, init } from "./main.mjs";
+			function load() {
+				document.getElementById("seed").addEventListener("change", seed_changed);
+				document.getElementById("grow").addEventListener("click", add_cup);
+				document.getElementById("imagine").addEventListener("click", imagine);
+				document.getElementById("flint").addEventListener("click", apply_flint);
+				seed_changed();
+				add_cup();
+			}
+			var transmutations = [];
+			var transmutation_rows = [];
+			function add_cup() {
+				let altar = document.getElementById("altar");
+				let transmutation = document.createElement("tr");
+				let transmutation_count = transmutations.length;
+				transmutations.push({});
+				transmutation.appendChild(create_cup("sacrifice", transmutation_count));
+				transmutation.appendChild(create_cup("product", transmutation_count));
+				transmutation.appendChild(create_cup("stain", transmutation_count));
+				transmutation.appendChild(create_cast(transmutation_count));
+				transmutation_rows[transmutation_count] = transmutation;
+				altar.appendChild(transmutation);
+			}
+			function create_cup(purpose, index) {
+				let saucer = document.createElement("td");
+				let cup = document.createElement("select");
+				transmutations[index][purpose] = cup;
+				dream(cup);
+				saucer.appendChild(cup);
+				return saucer;
+			}
+			function create_cast(index) {
+				let pedestal = document.createElement("td");
+				let cast = document.createElement("input");
+				cast.value = "Cast into the void";
+				cast.type = "button";
+				cast.addEventListener("click", function () {
+					cast_into_void(index);
+				});
+				pedestal.appendChild(cast);
+				return pedestal;
+			}
+			function cast_into_void(index) {
+				let transmutation = transmutations.splice(index, 1)[0];
+				let altar = document.getElementById("altar");
+				altar.removeChild(transmutation_rows.splice(index, 1)[0]);
+			}
+			function dream(cup) {
+				let i = 0;
+				for (let material of Array.from(materials).sort()) {
+					cup.appendChild(thought(material));
+					if (material == "air") {
+						cup.selectedIndex = i;
+					}
+					i++;
+				}
+			}
+			function thought(material, selected) {
+				let new_thought = document.createElement("option");
+				new_thought.name = material;
+				new_thought.text = material;
+				return new_thought;
+			}
+			function imagine() {
+				let mind = document.getElementById("mind").value;
+			}
+			function imagine_real(mind) {
+				if (mind == "") {
+					return;
+				} else if (materials.has(mind)) {
+					return;
+				} else {
+					materials.add(mind);
+					for(let transmutation of transmutations) {
+						for(let cup of Object.values(transmutation)) {
+							cup.appendChild(thought(mind));
+						}
+					}
+				}
+			}
+			var materials = new Set();
+			var state = null;
+			function seed_changed() {
+				let seed = document.getElementById("seed").valueAsNumber;
+				state = init(seed);
+				imagine_real("air");
+				for(let ng_shifts of state.world_state.all_shifts) {
+					for(let shift of ng_shifts) {
+						for(let material of shift.base) {
+							imagine_real(material);
+						}
+						imagine_real(shift.target);
+					}
+				}
+			}
+			function pray_to_gods(constraints) {
+				let requirements = [];
+				for(let transmutation of transmutations) {
+					if (transmutation["sacrifice"].value == "air") {
+						if (transmutation["product"].value != "air") {
+							return "a product requires a sacrifice";
+						}
+						if (transmutation["stain"].value != "air") {
+							return "to stain requires sacrifice";
+						}
+					} else {
+						if (transmutation["product"].value == "air") {
+							return "the gods cannot countenance annihilation";
+						}
+						let constraint = {
+							"base": transmutation["sacrifice"].value,
+							"target": transmutation["product"].value,
+						};
+						if (transmutation["stain"].value != "air") {
+							constraint.stain = transmutation["stain"].value;
+						}
+						constraints.push(constraint);
+					}
+				}
+				if (constraints.length == 0) {
+					return "the gods find only emptiness";
+				}
+			}
+			function clear_tablet() {
+				document.getElementById("tablet").innerText = "";
+			}
+			function decree(announcement) {
+				let engraving = document.createElement("p");
+				engraving.appendChild(document.createTextNode(announcement));
+				document.getElementById("tablet").appendChild(engraving);
+			}
+			function apply_flint() {
+				let constraints = [];
+				let response = pray_to_gods(constraints);
+				clear_tablet();
+				if (response) {
+					decree(response);
+					return;
+				}
+				state.world_state.constraints = constraints;
+				for(let i=0; i<10000000; i++) {
+					run_queue_step(state);
+				}
+				console.log(state);
+			}
+			load();
+		</script>
+		<style>
+		</style>
+		<title>Noita Fungal Solver</title>
+	</head>
+	<body>
+		<h1>Noita Fungal Solver</h1>
+
+		<div>
+			<p>For the purposes of great alchemies, the Solver may take from a curious witch five things.</p>
+			<p>First, the master must seek and supply the Seed from which the world was grown. This will embed within the machine the means to see into the unknown.</p>
+			<p>Second, all alchemy demands Sacrifices to begin any transmutation. They must be hung within the first column. Beware when making use of those rare things, as sufficient quantities will need to be found to cause changes upon the world.</p>
+			<p>Third, the Productions of the alchemies must be made known. Place them centrally upon the altar. As with the sacrifices, rare reagents must be sought to complete the ritual. Elements which are offensive to the world will burden the caster with most unfortunate circumstances as the results will likely involve their multiplication.</p>
+			<p>Fourth, in the process of the art of permutations, damage may be done to the properties of things, in particular their Stains. Place at the rightmost locations the material of the Stains. A brave practitioner may leave empty these cups and allow what will be to be, but beware the happenings that may result.</p>
+			<p>Finally, great time must be devoted. The machine may take many seconds to test the many realities.</p>
+		</div>
+
+		<p>Place here, the seed of your world: <input id="seed" type="number" value="0"/></p>
+
+		<table id="altar">
+			<tr>
+				<th><span title="The 'from' material in your desired fungal shift.">Sacrifice</span></th>
+				<th><span title="The eventual appearance of your from material.">Product</span></th>
+				<th><span title="The 'broken shift', which affects the effects of staining, among other things. Can be left blank.">Stain</span></th>
+			</tr>
+		</table>
+
+		<p>If the altar must have more cups, they may be <input type="button" id="grow" value="placed"/> upon it.</p>
+		<p>With the fires of imagination, the material of <input id="mind" type="text"/><input type="button" id="imagine" value="is created"/> to be placed within the cups.</p>
+
+		<div id="tablet"></div>
+
+		<input type="button" id="flint" value="Start the fires of the calculation engine"/>
+	</body>
+</html>
