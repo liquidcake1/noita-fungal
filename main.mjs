@@ -169,9 +169,13 @@ function constraint_satisfied(state, constraint) {
   return state_stain == constraint.stain;
 }
 
-function get_shift_from_helds(shift, constraint, reverse_state) {
+function get_shift_from_helds(shift, constraint, reverse_state, possible_states) {
   // We want to shift something from contraint.from.
   if (shift.held == "from") {
+    //let possible_targets = possible_states[shift.target] || new Set([shift.target]);
+    /*if (!possible_targets.has("ARBITRARY") && !possible_targets.has(constraint.target)) {
+      return [];
+    }*/
     if (shift.base.includes(constraint.base)) {
       // If shift.from.includes(constraint.from) then we may be able to use a
       // non-held shift to satisfy another constraint. We should try both
@@ -261,11 +265,12 @@ function explore(solver_state, world_state) {
 
   let state = {};
   let state_reverse = {};
+  let possible_states = {};
   let can_skip = false;
   for(var i = 0; i <= max_shift; i++) {
     var shift = shifts[i];
     if (held_materials[i] === undefined) {
-      var shift_from_helds = get_shift_from_helds(shift, constraint, state_reverse);
+      var shift_from_helds = get_shift_from_helds(shift, constraint, state_reverse, possible_states);
 
       for(let shift_held of shift_from_helds) {
         commit_shift(shift, constraint, state, state_reverse, shift_held, held_materials, i);
@@ -362,6 +367,34 @@ function explore(solver_state, world_state) {
         state_reverse[target_material] = new Set();
       }
       state_reverse[target_material].add(base);
+    }
+    if (false) {
+      // This code DEFINITELY breaks the algorithm; we find less good optimal solutions for
+      // #1296487564/magic_liquid_polymorph;water_salt/cheese_static;blood_fungi
+      let possible_bases = new Array(...shift.base);
+      if (shift.held == "from") {
+        possible_bases.push("ARBITRARY");
+      }
+      let possible_targets = [shift.target];
+      if (shift.held == "to") {
+        possible_targets.push("ARBITRARY");
+      }
+      let shifted_possible_targets = new Set();
+      for(let possible_target of possible_targets) {
+        if (possible_states[possible_target]) {
+          for (let shifted_possible_target of possible_states[possible_target]) {
+            shifted_possible_targets.add(possible_states[possible_target]);
+          }
+        } else {
+          shifted_possible_targets.add(possible_target);
+        }
+      }
+      for(let possible_base of possible_bases) {
+        possible_states[possible_base] ||= new Set([possible_base]);
+        for(let shifted_possible_target of shifted_possible_targets) {
+          possible_states[possible_base].add(shifted_possible_target);
+        }
+      }
     }
     if (state[constraint.target] && state[constraint.target] != constraint.target && state_reverse[constraint.target] === undefined) {
       // Oh no! This deleted our target material! The constraint cannot be

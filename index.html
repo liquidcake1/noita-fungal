@@ -256,7 +256,7 @@
 				for(let i=0; i<state.base_ng; i++) {
 					game_name += "+";
 				}
-				for(let i=0; i<100000; i++) {
+				for(let i=0; i<10000; i++) {
 					run_queue_step(state);
 				}
 				let message = "";
@@ -270,7 +270,7 @@
 				} else {
 					douse();
 				}
-				message += `${state.total_jobs} realities have been tested. ${state.solutions.length} recipes have been uncovered. `;
+				message += `${state.total_jobs} realities have been tested. ${state.solutions.length} recipes have been uncovered. There are currently ${state.jobs.length} known unexplored realities.`;
 				let recipe_nr_elt = document.getElementById("recipe_nr");
 				if (state.solutions.length > 0) {
 					let best_solution = state.solutions[state.solutions.length - 1];
