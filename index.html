@@ -4,14 +4,16 @@
 		<meta charset="UTF-8">
 		<script language="javascript" type="module">
 			import { run_queue_step, init } from "./main.mjs";
+			window.addEventListener("hashchange", hash_changed);
 			function load() {
 				document.getElementById("seed").addEventListener("change", seed_changed);
 				document.getElementById("grow").addEventListener("click", add_cup);
 				document.getElementById("imagine").addEventListener("click", imagine);
 				document.getElementById("flint").addEventListener("click", apply_flint);
 				document.getElementById("recipe_nr").addEventListener("change", recipe_changed);
-				seed_changed();
 				add_cup();
+				hash_changed();
+				seed_changed();
 			}
 			var transmutations = [];
 			var transmutation_rows = [];
@@ -30,10 +32,70 @@
 			function create_cup(purpose, index) {
 				let saucer = document.createElement("td");
 				let cup = document.createElement("select");
+				cup.addEventListener("change", save_state);
 				transmutations[index][purpose] = cup;
 				dream(cup);
 				saucer.appendChild(cup);
 				return saucer;
+			}
+			function save_state() {
+				console.log("save state");
+				let hash_state = "#" + document.getElementById("seed").valueAsNumber;
+				let constraints = [];
+				pray_to_gods(constraints);
+				for (let constraint of constraints) {
+					hash_state += "/";
+					hash_state += constraint.base;
+					hash_state += ";";
+					hash_state += constraint.target;
+					if (constraint.stain) {
+						hash_state += ";"
+						hash_state += constraint.stain;
+					}
+				}
+				history.replaceState(null, "", hash_state);
+			}
+			function hash_changed() {
+				if (location.hash) {
+					restore_state(location.hash.slice(1));
+				}
+			}
+			function restore_state(hash_state) {
+				let bits = hash_state.split("/");
+				let seed = Number.parseInt(bits.shift());
+				let constraints = [];
+				for (let bit of bits) {
+					let materials = bit.split(";");
+					let constraint = {
+						"base": materials[0],
+						"target": materials[1],
+					};
+					if (materials.length >= 3) {
+						constraint.stain = materials[2];
+					}
+					constraints.push(constraint);
+				}
+				document.getElementById("seed").valueAsNumber = seed;
+				load_constraints(constraints);
+			}
+			function load_constraints(constraints) {
+				for(let constraint of constraints) {
+					imagine_real(constraint.base);
+					imagine_real(constraint.target);
+					imagine_real(constraint.stain || "air");
+				}
+				while(transmutations.length < constraints.length) {
+					add_cup();
+				}
+				for(let i in constraints) {
+					let constraint = constraints[i];
+					set_cup(transmutations[i], "sacrifice", constraints[i].base);
+					set_cup(transmutations[i], "product", constraints[i].target);
+					set_cup(transmutations[i], "stain", constraints[i].stain || "air");
+				}
+			}
+			function set_cup(transmutation, item, material) {
+				transmutation[item].value = material;
 			}
 			function create_cast(index) {
 				let pedestal = document.createElement("td");
@@ -55,6 +117,7 @@
 				let i = 0;
 				for (let material of Array.from(materials).sort()) {
 					cup.appendChild(thought(material));
+					// TODO refactor for hash links
 					if (material == "air") {
 						cup.selectedIndex = i;
 					}
@@ -69,8 +132,10 @@
 			}
 			function imagine() {
 				let mind = document.getElementById("mind").value;
+				imagine_real(mind);
 			}
 			function imagine_real(mind) {
+				// TODO maintain ordering.
 				if (mind == "") {
 					return;
 				} else if (materials.has(mind)) {
@@ -87,7 +152,7 @@
 			var materials = new Set();
 			var state = null;
 			function seed_changed() {
-				seed = document.getElementById("seed").valueAsNumber;
+				let seed = document.getElementById("seed").valueAsNumber;
 				state = init(seed);
 				imagine_real("air");
 				for(let ng_shifts of state.world_state.all_shifts) {
@@ -102,33 +167,34 @@
 			function pray_to_gods(constraints) {
 				let requirements = [];
 				let end_state = {};
+				let complaint = null;
 				for(let transmutation of transmutations) {
 					let sacrifice = transmutation["sacrifice"].value;
 					let product = transmutation["product"].value;
 					let stain = transmutation["stain"].value;
 					if (sacrifice == "air") {
 						if (product != "air") {
-							return "A product requires a sacrifice.";
+							complaint ||= "A product requires a sacrifice.";
 						}
 						if (stain != "air") {
-							return "A stain requires sacrifice.";
+							complaint ||= "A stain requires sacrifice.";
 						}
 					} else {
 						if (product == "air") {
-							return "The gods cannot countenance annihilation.";
+							complaint ||= "The gods cannot countenance annihilation.";
 						}
 						let constraint = {
 							"base": sacrifice,
 							"target": product,
 						};
 						if (end_state[sacrifice] && end_state[sacrifice] != product) {
-							return `The anfractuous cycle so-created contradicts the bounds of reality. ${sacrifice} must become both ${end_state[sacrifice]} and ${product}.`;
+							complaint ||= `The anfractuous cycle so-created contradicts the bounds of reality. ${sacrifice} must become both ${end_state[sacrifice]} and ${product}.`;
 						}
 						end_state[sacrifice] = product;
 						if (stain != "air") {
 							constraint.stain = stain;
 							if (end_state[product] && end_state[product] != stain) {
-								return `The anfractuous cycle so-created contradicts the bounds of reality. ${product} must become both ${end_state[product]} and ${sacrifice}.`;
+								complaint ||= `The anfractuous cycle so-created contradicts the bounds of reality. ${product} must become both ${end_state[product]} and ${sacrifice}.`;
 							}
 							end_state[product] = stain;
 						}
@@ -136,8 +202,9 @@
 					}
 				}
 				if (constraints.length == 0) {
-					return "the gods find only emptiness";
+					complaint ||= "the gods find only emptiness";
 				}
+				return complaint;
 			}
 			function clear_tablet() {
 				document.getElementById("tablet").innerText = "";
@@ -284,7 +351,7 @@
 					}
 					tr.appendChild(td_text(material));
 					let sacrifices = shifts[i].base;
-					let product = shifts[i].product;
+					let product = shifts[i].target;
 					if (material == "air") {
 						tr.appendChild(td_text(""));
 					} else if (shifts[i].held == "from") {
@@ -318,9 +385,11 @@
 		</script>
 		<style>
 table { border: black solid 1px; padding: 0px; }
-th { font-family: monospace; font-weight: normal; }
-td { font-family: monospace; background: lightgrey; width: 1em; padding: 0px; text-align: center; }
+th { font-family: monospace; font-weight: normal; color: lightgreen; }
+td { font-family: monospace; background: lightgreen; color: darkgreen; width: 1em; padding: 0px; text-align: center; }
 td > p { margin-bottom: 0px; margin-top: 0px; }
+body { background: black; color: lightgray; }
+a { color: lightblue; }
 		</style>
 		<title>Noita Fungal Solver</title>
 	</head>
@@ -360,7 +429,7 @@ td > p { margin-bottom: 0px; margin-top: 0px; }
 					<th>Presentation</th>
 					<th>Interpretation</th>
 					<th>Sacrifices</th>
-					<th>Products</th>
+					<th>Product</th>
 				</tr>
 			</table>
 			<h2>The New World</h2>
