@@ -9,6 +9,7 @@
 				document.getElementById("grow").addEventListener("click", add_cup);
 				document.getElementById("imagine").addEventListener("click", imagine);
 				document.getElementById("flint").addEventListener("click", apply_flint);
+				document.getElementById("recipe_nr").addEventListener("change", recipe_changed);
 				seed_changed();
 				add_cup();
 			}
@@ -86,7 +87,7 @@
 			var materials = new Set();
 			var state = null;
 			function seed_changed() {
-				let seed = document.getElementById("seed").valueAsNumber;
+				seed = document.getElementById("seed").valueAsNumber;
 				state = init(seed);
 				imagine_real("air");
 				for(let ng_shifts of state.world_state.all_shifts) {
@@ -100,24 +101,36 @@
 			}
 			function pray_to_gods(constraints) {
 				let requirements = [];
+				let end_state = {};
 				for(let transmutation of transmutations) {
-					if (transmutation["sacrifice"].value == "air") {
-						if (transmutation["product"].value != "air") {
-							return "a product requires a sacrifice";
+					let sacrifice = transmutation["sacrifice"].value;
+					let product = transmutation["product"].value;
+					let stain = transmutation["stain"].value;
+					if (sacrifice == "air") {
+						if (product != "air") {
+							return "A product requires a sacrifice.";
 						}
-						if (transmutation["stain"].value != "air") {
-							return "to stain requires sacrifice";
+						if (stain != "air") {
+							return "A stain requires sacrifice.";
 						}
 					} else {
-						if (transmutation["product"].value == "air") {
-							return "the gods cannot countenance annihilation";
+						if (product == "air") {
+							return "The gods cannot countenance annihilation.";
 						}
 						let constraint = {
-							"base": transmutation["sacrifice"].value,
-							"target": transmutation["product"].value,
+							"base": sacrifice,
+							"target": product,
 						};
-						if (transmutation["stain"].value != "air") {
-							constraint.stain = transmutation["stain"].value;
+						if (end_state[sacrifice] && end_state[sacrifice] != product) {
+							return `The anfractuous cycle so-created contradicts the bounds of reality. ${sacrifice} must become both ${end_state[sacrifice]} and ${product}.`;
+						}
+						end_state[sacrifice] = product;
+						if (stain != "air") {
+							constraint.stain = stain;
+							if (end_state[product] && end_state[product] != stain) {
+								return `The anfractuous cycle so-created contradicts the bounds of reality. ${product} must become both ${end_state[product]} and ${sacrifice}.`;
+							}
+							end_state[product] = stain;
 						}
 						constraints.push(constraint);
 					}
@@ -130,27 +143,184 @@
 				document.getElementById("tablet").innerText = "";
 			}
 			function decree(announcement) {
+				clear_tablet();
 				let engraving = document.createElement("p");
 				engraving.appendChild(document.createTextNode(announcement));
 				document.getElementById("tablet").appendChild(engraving);
 			}
+			var timeout = null;
 			function apply_flint() {
 				let constraints = [];
 				let response = pray_to_gods(constraints);
-				clear_tablet();
 				if (response) {
 					decree(response);
 					return;
 				}
+				seed_changed();
 				state.world_state.constraints = constraints;
-				for(let i=0; i<10000000; i++) {
+				state.running = true;
+				document.getElementById("flint").removeEventListener("click", apply_flint);
+				document.getElementById("flint").addEventListener("click", douse);
+				document.getElementById("flint").value = "Douse the apparatus";
+				document.getElementById("recipe_nr").valueAsNumber = null;
+				console.log("The fires are lit.");
+				run_step();
+			}
+			function douse() {
+				if (timeout) {
+					window.cancelTimeout(timeout);
+					timeout = null;
+				}
+				if (state) {
+					state.running = false;
+				}
+				document.getElementById("flint").removeEventListener("click", douse);
+				document.getElementById("flint").addEventListener("click", apply_flint);
+				document.getElementById("flint").value = "Start the fires of the calculation engine";
+				console.log("The fires are extinguished.");
+			}
+			function run_step() {
+				if (!state || !state.running) {
+					return;
+				}
+				let game_name = "New Game";
+				for(let i=0; i<state.base_ng; i++) {
+					game_name += "+";
+				}
+				for(let i=0; i<100000; i++) {
 					run_queue_step(state);
 				}
-				console.log(state);
+				let message = "";
+				if (!state.finished) {
+					message += `Studying the properties of ${game_name}`;
+					if (state.shift_nr < 20) {
+						message += `; moving to ${game_name}+ after ${state.shift_nr} shifts. `;
+					} else {
+						message += ". ";
+					}
+				} else {
+					douse();
+				}
+				message += `${state.total_jobs} realities have been tested. ${state.solutions.length} recipes have been uncovered. `;
+				let recipe_nr_elt = document.getElementById("recipe_nr");
+				if (state.solutions.length > 0) {
+					let best_solution = state.solutions[state.solutions.length - 1];
+					message += ` The shortest recipe requires NG+${best_solution.base_ng} and has ${best_solution.length} shifts.`;
+					recipe_nr_elt.min = 1;
+					recipe_nr_elt.max = state.solutions.length;
+					if (!recipe_nr_elt.valueAsNumber) {
+						recipe_nr_elt.valueAsNumber = 1;
+						recipe_changed();
+					}
+					document.getElementById("recipes").style = "";
+				} else {
+					document.getElementById("recipes").style = "display: none;"
+					recipe_nr_elt.valueAsNumber = null;
+				}
+				decree(message);
+				window.setTimeout(run_step);
+			}
+			function recipe_changed() {
+				console.log("Recipe changed");
+				let recipe_nr = document.getElementById("recipe_nr").valueAsNumber;
+				let world, held_materials, shift_nr, shifts;
+				if (recipe_nr) {
+					let recipe = state.solutions[recipe_nr-1];
+
+					let pre_state_elt = document.getElementById("pre_state");
+					if (recipe.base_ng) {
+						let game_name = "New Game";
+						for(let i=0; i<state.base_ng; i++) {
+							game_name += "+";
+						}
+						pre_state_elt.innerText = `First, proceed to ${game_name}. `;
+					} else {
+						pre_state_elt.innerText = "This recipe is to be started in New Game. ";
+					}
+					pre_state_elt.innerText += `This recipe needs ${recipe.held_materials.length} shifts.`;
+					held_materials = recipe.held_materials;
+					world = recipe.state;
+					shift_nr = recipe.shift_nr;
+					length = recipe.length;
+					shifts = recipe.shifts;
+				} else {
+					world = {};
+					held_materials = [];
+					shift_nr = 20;
+					length = 0;
+					shifts = [];
+				}
+				let world_keys = Array.from(Object.keys(world)).sort();
+				let world_elt = document.getElementById("world");
+				while(world_elt.childNodes.length > 2) {
+					world_elt.removeChild(world_elt.childNodes[2]);
+				}
+				for(let i=0; i<world_keys.length; i++) {
+					let tr = document.createElement("tr");
+					tr.appendChild(td_text(world_keys[i]));
+					tr.appendChild(td_text(world[world_keys[i]]));
+					if (world[world[world_keys[i]]]) {
+						tr.appendChild(td_text(world[world[world_keys[i]]]));
+					}
+					world_elt.appendChild(tr);
+				}
+				let recipe_elt = document.getElementById("recipe");
+				while(recipe_elt.childNodes.length > 2) {
+					recipe_elt.removeChild(recipe_elt.childNodes[2]);
+				}
+				world = {};
+				for(let i=0; i<length; i++) {
+					if (i == shift_nr) {
+						let skip = document.createElement("tr");
+						let skip_in = td_text("GO TO NEXT NEW GAME");
+						skip_in.colSpan = 4;
+						recipe_elt.appendChild(skip_in);
+					}
+					let tr = document.createElement("tr");
+					let material = held_materials[i];
+					if (!material) {
+						// null means unused; undefined means forced
+						material = "air";
+					}
+					tr.appendChild(td_text(material));
+					let sacrifices = shifts[i].base;
+					let product = shifts[i].product;
+					if (material == "air") {
+						tr.appendChild(td_text(""));
+					} else if (shifts[i].held == "from") {
+						tr.appendChild(td_text("Sacrifice"));
+						sacrifices = [material];
+					} else if (shifts[i].held == "to") {
+						tr.appendChild(td_text("Product"));
+						product = material;
+					}
+					if (world[product]) {
+						product = world[product];
+					}
+					let sacrifices_elt = document.createElement("td");
+					for(let sacrifice of sacrifices) {
+						let p = document.createElement("p");
+						p.appendChild(document.createTextNode(sacrifice));
+						sacrifices_elt.appendChild(p);
+						world[sacrifice] = product;
+					}
+					tr.appendChild(sacrifices_elt);
+					tr.appendChild(td_text(product));
+					recipe_elt.appendChild(tr);
+				}
+			}
+			function td_text(text) {
+				let td = document.createElement("td");
+				td.appendChild(document.createTextNode(text));
+				return td;
 			}
 			load();
 		</script>
 		<style>
+table { border: black solid 1px; padding: 0px; }
+th { font-family: monospace; font-weight: normal; }
+td { font-family: monospace; background: lightgrey; width: 1em; padding: 0px; text-align: center; }
+td > p { margin-bottom: 0px; margin-top: 0px; }
 		</style>
 		<title>Noita Fungal Solver</title>
 	</head>
@@ -171,7 +341,7 @@
 		<table id="altar">
 			<tr>
 				<th><span title="The 'from' material in your desired fungal shift.">Sacrifice</span></th>
-				<th><span title="The eventual appearance of your from material.">Product</span></th>
+				<th><span title="The eventual appearance of your 'from' material.">Product</span></th>
 				<th><span title="The 'broken shift', which affects the effects of staining, among other things. Can be left blank.">Stain</span></th>
 			</tr>
 		</table>
@@ -181,6 +351,33 @@
 
 		<div id="tablet"></div>
 
+		<div id="recipes" style="display: none;">
+			<input id="recipe_nr" type="number"/>
+			<p id="pre_state"/>
+			<h2>The Recipe</h2>
+			<table id="recipe">
+				<tr>
+					<th>Presentation</th>
+					<th>Interpretation</th>
+					<th>Sacrifices</th>
+					<th>Products</th>
+				</tr>
+			</table>
+			<h2>The New World</h2>
+			<table id="world">
+				<tr>
+					<th>Initiate</th>
+					<th>Appearance</th>
+					<th>Stain</th>
+				</tr>
+			</table>
+		</div>
+
 		<input type="button" id="flint" value="Start the fires of the calculation engine"/>
+
+		<h2>Boring stuff</h2>
+
+		<p>The code to fetch shifts for a seed is from <a href="https://github.com/TwoAbove/noita-tools">noita-tools</a> (Noitool). This code is available under the <i><a href="https://github.com/TwoAbove/noita-tools/blob/30bcc629c681291657cb1938c296c0cbc4b2043e/LICENSE">MIT license</a></i>. Copyright (c) 2022 Seva Maltsev <me@seva.dev> (<a href="https://seva.dev/">https://seva.dev/</a>)"</p>
+		<p>Remainder of copyright and related rights waived via <i><a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0</a></i>.</p>
 	</body>
 </html>

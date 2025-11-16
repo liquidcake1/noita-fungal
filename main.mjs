@@ -413,11 +413,14 @@ export function init(new_seed, new_constraints) {
     "seed": new_seed,
     "next_shift_nr": 20,
     "next_base_ng": 0,
+    "shift_nr": 20,
+    "base_ng": 0,
     "jobs": [],
     "total_jobs": 0,
     "failed_checks": 0,
     "world_state": world_state,
     "solutions": [],
+    "finished": false,
   }
   return state;
 }
@@ -426,13 +429,14 @@ export function run_queue_step(queue_state) {
   let world_state = queue_state.world_state;
   if (queue_state.jobs.length == 0) {
     if (queue_state.next_base_ng > 27) {
+      queue_state.finished = true;
       return queue_state;
     }
     let shift_nr = queue_state.next_shift_nr;
     let ng = queue_state.next_base_ng;
-    world_state.shift_nr = shift_nr;
-    world_state.base_ng = ng;
-    if (shift_nr == 0) {
+    queue_state.shift_nr = shift_nr;
+    queue_state.base_ng = ng;
+    if (shift_nr == 1) {
       queue_state.next_shift_nr = 20;
       queue_state.next_base_ng++;
     } else {
@@ -463,9 +467,10 @@ export function run_queue_step(queue_state) {
       }
       queue_state.solutions.push({
         "state": ret.state,
-        "base_ng": world_state.base_ng,
-        "shift_nr": world_state.shift_nr,
+        "base_ng": queue_state.base_ng,
+        "shift_nr": queue_state.shift_nr,
         "length": ret.length,
+        "shifts": world_state.shifts,
         "held_materials": job.held_materials,
       });
     } else {
