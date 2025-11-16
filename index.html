@@ -25,7 +25,7 @@
 				transmutation.appendChild(create_cup("sacrifice", transmutation_count));
 				transmutation.appendChild(create_cup("product", transmutation_count));
 				transmutation.appendChild(create_cup("stain", transmutation_count));
-				transmutation.appendChild(create_cast(transmutation_count));
+				transmutation.appendChild(create_cast(transmutation));
 				transmutation_rows[transmutation_count] = transmutation;
 				altar.appendChild(transmutation);
 			}
@@ -97,21 +97,23 @@
 			function set_cup(transmutation, item, material) {
 				transmutation[item].value = material;
 			}
-			function create_cast(index) {
+			function create_cast(transmutation) {
 				let pedestal = document.createElement("td");
 				let cast = document.createElement("input");
 				cast.value = "Cast into the void";
 				cast.type = "button";
 				cast.addEventListener("click", function () {
-					cast_into_void(index);
+					cast_into_void(transmutation);
 				});
 				pedestal.appendChild(cast);
 				return pedestal;
 			}
-			function cast_into_void(index) {
+			function cast_into_void(transmutation_row) {
+				let index = transmutation_rows.findIndex((x) => x === transmutation_row);
 				let transmutation = transmutations.splice(index, 1)[0];
 				let altar = document.getElementById("altar");
-				altar.removeChild(transmutation_rows.splice(index, 1)[0]);
+				altar.removeChild(transmutation_row);
+				save_state();
 			}
 			function dream(cup) {
 				let i = 0;
@@ -152,7 +154,7 @@
 			var materials = new Set();
 			var state = null;
 			function seed_changed() {
-				let seed = document.getElementById("seed").valueAsNumber;
+				seed = document.getElementById("seed").valueAsNumber;
 				state = init(seed);
 				imagine_real("air");
 				for(let ng_shifts of state.world_state.all_shifts) {
@@ -297,7 +299,7 @@
 					let pre_state_elt = document.getElementById("pre_state");
 					if (recipe.base_ng) {
 						let game_name = "New Game";
-						for(let i=0; i<state.base_ng; i++) {
+						for(let i=0; i<recipe.base_ng; i++) {
 							game_name += "+";
 						}
 						pre_state_elt.innerText = `First, proceed to ${game_name}. `;
@@ -341,7 +343,8 @@
 						let skip = document.createElement("tr");
 						let skip_in = td_text("GO TO NEXT NEW GAME");
 						skip_in.colSpan = 4;
-						recipe_elt.appendChild(skip_in);
+						skip.appendChild(skip_in);
+						recipe_elt.appendChild(skip);
 					}
 					let tr = document.createElement("tr");
 					let material = held_materials[i];
@@ -386,7 +389,8 @@
 		<style>
 table { border: black solid 1px; padding: 0px; }
 th { font-family: monospace; font-weight: normal; color: lightgreen; }
-td { font-family: monospace; background: lightgreen; color: darkgreen; width: 1em; padding: 0px; text-align: center; }
+td { font-family: monospace; width: 1em; padding: 0px; text-align: center; }
+.recipes > table > tr > td { background: lightgreen; color: darkgreen; }
 td > p { margin-bottom: 0px; margin-top: 0px; }
 body { background: black; color: lightgray; }
 a { color: lightblue; }
@@ -420,7 +424,7 @@ a { color: lightblue; }
 
 		<div id="tablet"></div>
 
-		<div id="recipes" style="display: none;">
+		<div id="recipes" style="display: none;" class="recipes">
 			<input id="recipe_nr" type="number"/>
 			<p id="pre_state"/>
 			<h2>The Recipe</h2>
