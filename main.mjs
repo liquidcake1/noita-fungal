@@ -20,43 +20,18 @@ function print_state2(state, indent) {
     }
   });
 }
-/*shifts.forEach(function(shift){
-  state = run_shift(state, shift[0], shift[1]);
-  console.log(`After shifting ${shift[0]} into ${shift[1]}:`);
-  //print_state(state, "  ");
-  console.log("");
-});*/
 
-/*
- * Adding this to fungal.cpp from noita-tools:
-+int random_nexti(const uint ws, random_pos& rnd, const double min, const double max) {
-+       g_rng.SetRandomSeed(ws, rnd.x, rnd.y);
-+       const auto proc_result = g_rng.Random((int)RoundHalfOfEven(min), (int)RoundHalfOfEven(max));
-+        rnd.y += 1;
-+        return proc_result;
-+}
- * Then in noita-tools/src/services/SeedInfo/infoHandler/InfoProviders/FungalShift/:
- * em++ fungal.cpp --std=c++20 -lembind -o noita_fungal.js -s MODULARIZE=1
- * Now grab noita_fungal.{wasm,js}.
- * This generates about 400KB of crap, but does give us our fungal shifts.
- */
-
-import * as noita_fungal_import from "./noita_fungal.mjs";
-var noita_fungal = await noita_fungal_import.default();
+import { getFungalShift } from "./fungal.mjs";
 function load_shifts_for_seed(seed) {
-  let test_data_raw = noita_fungal.PickForSeed(seed, 20);
   let shifts = [];
-  for(var i=0; i<test_data_raw.size(); i++) {
-    let shift_c = test_data_raw.get(i);
-    let shift_from = [];
-    for(var j=0; j<shift_c["from"].size(); j++) {
-      shift_from.push(shift_c["from"].get(j));
-    }
+  for(var i=0; i<20; i++) {
+    // TODO do something with everything else, this is wrong.
+    let shift_all = getFungalShift(seed, i);
+    let shift_c = shift_all.OTHER || shift_all.NOTHING;
     let shift = {
-      "base": shift_from,
-      "target": shift_c.to,
-      "held": shift_c.flaskFrom ? "from" : shift_c.flaskTo ? "to" : null,
-      // TODO greed (gold_to_x, grass_to_x)
+      "base": shift_c.fromMaterials,
+      "target": shift_c.toMaterial,
+      "held": shift_c.useHeld,
     };
     // Store the original state so that we can mess with it later.
     shift.original = {"held": shift.held, "from": shift.from, "to": shift.to};
