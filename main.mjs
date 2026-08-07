@@ -201,6 +201,9 @@ class SolveState {
     this.constraints = new Array(...constraints);
     this.held_materials = new Array(...held_materials);
   }
+  str() {
+    return JSON.stringify([this.constraints, this.held_materials]);
+  }
 }
 
 class WorldState {
@@ -424,6 +427,7 @@ export function init(new_seed, new_constraints) {
     "shift_nr": 20,
     "base_ng": 0,
     "jobs": [],
+    "seen_jobs": new Set(),
     "total_jobs": 0,
     "failed_checks": 0,
     "world_state": world_state,
@@ -436,6 +440,7 @@ export function init(new_seed, new_constraints) {
 export function run_queue_step(queue_state) {
   let world_state = queue_state.world_state;
   if (queue_state.jobs.length == 0) {
+    queue_state.seen_jobs.clear();
     if (queue_state.next_base_ng > 27) {
       queue_state.finished = true;
       return queue_state;
@@ -464,6 +469,7 @@ export function run_queue_step(queue_state) {
     queue_state.tos = tos;
     queue_state.current_jobs = 0;
     queue_state.jobs = [new SolveState(world_state.constraints, [])];
+    queue_state.seen_jobs.add(queue_state.jobs[0].str())
   }
   queue_state.total_jobs++;
   let job = queue_state.jobs.pop();
@@ -487,7 +493,11 @@ export function run_queue_step(queue_state) {
   } else {
     let new_jobs = explore(job, world_state);
     for (let i=new_jobs.length - 1; i>=0; i--) {
-      queue_state.jobs.push(new_jobs[i]);
+      const key = new_jobs[i].str();
+      if (!queue_state.seen_jobs.has(key)) {
+        queue_state.seen_jobs.add(key);
+        queue_state.jobs.push(new_jobs[i]);
+      }
     }
   }
 }

@@ -20,3 +20,21 @@ export function simple() {
   }
   assert(found > 0);
 }
+
+export function no_daft_infinite_loop() {
+  // This specific input (and probably many others) would cause the search to
+  // balloon up to "all of the RAM", which literally killed my PC.
+  let state = init(970230895, [{"base": "blood", "target": "magic_liquid_hp_generation"}]);
+  let loops = 0;
+  while(!state.finished && loops < 10000) {
+    run_queue_step(state);
+  }
+  assert(state.finished);
+  let found = 0;
+  for(let sol of state.solutions) {
+    if (sol.length == 8) {
+      found += 1;
+    }
+  }
+  assert(found > 0);
+}
