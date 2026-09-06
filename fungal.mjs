@@ -1,67 +1,7 @@
 // From Lymm's Telescope, https://github.com/Lymm37/noita-telescope/blob/main/js/fungal_shifts.js
 import { NollaPrng } from './nolla_prng.mjs';
 
-// Data Tables
-const materialsFrom = [
-  { probability: 1.0, materials: ["water", "water_static", "water_salt", "water_ice"], nameMaterial: "water" },
-  { probability: 1.0, materials: ["lava"], nameMaterial: "lava" },
-  { probability: 1.0, materials: ["radioactive_liquid", "poison", "material_darkness"], nameMaterial: "radioactive_liquid" },
-  { probability: 1.0, materials: ["oil", "swamp", "peat"], nameMaterial: "oil" },
-  { probability: 1.0, materials: ["blood"], nameMaterial: "blood" },
-  { probability: 1.0, materials: ["blood_fungi", "fungi", "fungisoil"], nameMaterial: "fungi" },
-  { probability: 1.0, materials: ["blood_cold", "blood_worm"], nameMaterial: "blood_cold" },
-  { probability: 1.0, materials: ["acid"], nameMaterial: "acid" },
-  { probability: 0.4, materials: ["acid_gas", "acid_gas_static", "poison_gas", "fungal_gas", "radioactive_gas", "radioactive_gas_static"], nameMaterial: "acid_gas" },
-  { probability: 0.4, materials: ["magic_liquid_polymorph", "magic_liquid_unstable_polymorph"], nameMaterial: "magic_liquid_polymorph" },
-  { probability: 0.4, materials: ["magic_liquid_berserk", "magic_liquid_charm", "magic_liquid_invisibility"], nameMaterial: "magic_liquid_berserk" },
-  { probability: 0.6, materials: ["diamond"], nameMaterial: "diamond" },
-  { probability: 0.6, materials: ["silver", "brass", "copper"], nameMaterial: "silver" },
-  { probability: 0.2, materials: ["steam", "smoke"], nameMaterial: "steam" },
-  { probability: 0.4, materials: ["sand"], nameMaterial: "sand" },
-  { probability: 0.4, materials: ["snow_sticky"], nameMaterial: "snow_sticky" },
-  { probability: 0.05, materials: ["rock_static"], nameMaterial: "rock_static" },
-  { probability: 0.0003, materials: ["gold", "gold_box2d"], nameMaterial: "gold" }
-];
-
-const materialsTo = [
-  { probability: 1.0, material: "water" },
-  { probability: 1.0, material: "lava" },
-  { probability: 1.0, material: "radioactive_liquid" },
-  { probability: 1.0, material: "oil" },
-  { probability: 1.0, material: "blood" },
-  { probability: 1.0, material: "blood_fungi" },
-  { probability: 1.0, material: "acid" },
-  { probability: 1.0, material: "water_swamp" },
-  { probability: 1.0, material: "alcohol" },
-  { probability: 1.0, material: "sima" },
-  { probability: 1.0, material: "blood_worm" },
-  { probability: 1.0, material: "poison" },
-  { probability: 1.0, material: "vomit" },
-  { probability: 1.0, material: "pea_soup" },
-  { probability: 1.0, material: "fungi" },
-  { probability: 0.8, material: "sand" },
-  { probability: 0.8, material: "diamond" },
-  { probability: 0.8, material: "silver" },
-  { probability: 0.8, material: "steam" },
-  { probability: 0.5, material: "rock_static" },
-  { probability: 0.5, material: "gunpowder" },
-  { probability: 0.5, material: "material_darkness" },
-  { probability: 0.5, material: "material_confusion" },
-  { probability: 0.2, material: "rock_static_radioactive" },
-  { probability: 0.02, material: "magic_liquid_polymorph" },
-  { probability: 0.02, material: "magic_liquid_random_polymorph" },
-  { probability: 0.15, material: "magic_liquid_teleportation" },
-  { probability: 0.10, material: "mimic_liquid" },
-  { probability: 0.01, material: "urine" },
-  { probability: 0.01, material: "poo" },
-  { probability: 0.01, material: "void_liquid" },
-  { probability: 0.01, material: "cheese_static" }
-];
-
-const greedyMaterials = [
-  "brass", "silver", "radioactive_liquid", "pea_soup",
-  "acid_gas", "poo", "mammi", "rotten_meat_radioactive", "vomit"
-];
+import { materialsFrom, materialsTo, greedOutputs, maxShifts, baseSeedY, convertMaxTries, convertFailIncrementsShiftCounter, extraUnions } from './fungal_materials.mjs';
 
 // Helper Functions
 function pickRandomFromTableWeighted(ws, items, rndState) {
@@ -99,16 +39,17 @@ function randomNext(seed, a, b, rndState) {
   return result;
 }
 
-export function getFungalShiftRetries(ws, shift_number, held) {
+// mods = object : string -> version
+export function getFungalShiftRetries(ws, shift_number, held, mode = "vanilla") {
   let convertTries = 0;
   let interesting_materials = [];
 
   while (1) {
-    let seed2 = 42345 + shift_number + (1000 * convertTries);
-    let rndState = { x: 9123, y: seed2 };
+    let seed2 = baseSeedY[mode] + shift_number + (1000 * convertTries);
+    let rndState = { x: 9123, y: seed2};
 
-    let fromItem = pickRandomFromTableWeighted(ws, materialsFrom, rndState);
-    let toItem = pickRandomFromTableWeighted(ws, materialsTo, rndState);
+    let fromItem = pickRandomFromTableWeighted(ws, materialsFrom[mode], rndState);
+    let toItem = pickRandomFromTableWeighted(ws, materialsTo[mode], rndState);
     let useHeld = null;
     let greedChange = null;
 
@@ -116,7 +57,8 @@ export function getFungalShiftRetries(ws, shift_number, held) {
       if (randomNext(ws, 1, 100, rndState) <= 50) {
         useHeld = "from";
       } else {
-        const rareRoll = randomNext(ws, 1, 1000, rndState);
+        const greedyMaterials = greedOutputs[mode];
+        const rareRoll = greedyMaterials !== null ? randomNext(ws, 1, 1000, rndState) : 1;
         if (rareRoll === 1) {
           // Only one of gold/grass happens depending on what you are holding, so they share an RNG state.
           useHeld = "to";
@@ -142,7 +84,7 @@ export function getFungalShiftRetries(ws, shift_number, held) {
 
     // If we're called to deal with a held material, replace the correct material.
     if (useHeld == "from" && held) {
-      fromMaterials = [held];
+      fromMaterials = extraUnions[mode][held] || [held];
     }
     if (useHeld == "to" && held) {
       toMaterial = held;
@@ -180,7 +122,11 @@ export function getFungalShiftRetries(ws, shift_number, held) {
         interesting_materials.push(toMaterial);
       }
     }
-    if (convertedAny || convertTries >= 19) {
+    if (convertTries >= convertMaxTries[mode] - 1 && convertFailIncrementsShiftCounter[mode]) {
+      // Bungal shifts will generate a real shift even if nothing converts.
+      convertedAny = true;
+    }
+    if (convertedAny) {
       return {
         shift: {
           convertTries: convertTries,
@@ -191,18 +137,28 @@ export function getFungalShiftRetries(ws, shift_number, held) {
         },
         interesting_materials: interesting_materials,
       };
+    } else if (convertTries >= convertMaxTries[mode] - 1) {
+      // TODO don't crash when we do this.
+      // It's probably actually impossible though.
+      console.log("Too many retries!!!", convertTries);
+      console.log(convertedAny);
+      console.log(fromItem);
+      console.log(toItem);
+      console.log(fromMaterials);
+      console.log(toMaterial);
+      return null;
     }
     convertTries += 1;
   }
 }
 
-export function getFungalShift(ws, shift_number) {
-  let data = getFungalShiftRetries(ws, shift_number);
+export function getFungalShift(ws, shift_number, mode = "vanilla") {
+  let data = getFungalShiftRetries(ws, shift_number, null, mode);
   let ret = {
     "NOTHING": data.shift,
   };
   let interesting_materials = new Set(data.interesting_materials.values());
-  let data_other = getFungalShiftRetries(ws, shift_number, "FAKE_MATERIAL");
+  let data_other = getFungalShiftRetries(ws, shift_number, "FAKE_MATERIAL", mode);
   if (data_other.shift.convertTries != data.shift.convertTries || data_other.shift.useHeld) {
     ret["OTHER"] = data_other.shift;
   }
@@ -210,7 +166,7 @@ export function getFungalShift(ws, shift_number) {
     interesting_materials.add(material);
   }
   for(let material of interesting_materials.values()) {
-    let data2 = getFungalShiftRetries(ws, shift_number, material);
+    let data2 = getFungalShiftRetries(ws, shift_number, material, mode);
     if (data2.shift.convertTries != data_other.shift.convertTries || data2.shift.greedChange) {
       // I'm relatively sure only one specific material can ever do anything, excepting greed.
       ret[material] = data2.shift;
@@ -220,10 +176,10 @@ export function getFungalShift(ws, shift_number) {
 }
 let maxLength = 1;
 
-export function getFungalShifts(seed, ngPlusCount = 0) {
+export function getFungalShifts(seed, ngPlusCount = 0, mode = "vanilla") {
   let shifts = [];
-  for(let i=0; i<20; i++) {
-    shifts.push(getFungalShift(seed + ngPlusCount, i));
+  for(let i=0; i<maxShifts[mode]; i++) {
+    shifts.push(getFungalShift(seed + ngPlusCount, i, mode));
   }
   return shifts;
 }
