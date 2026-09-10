@@ -22,11 +22,11 @@ function print_state2(state, indent) {
 }
 
 import { getFungalShift } from "./fungal.mjs";
-function load_shifts_for_seed(seed) {
+function load_shifts_for_seed(seed, mode) {
   let shifts = [];
   for(var i=0; i<20; i++) {
     // TODO do something with everything else, this is wrong.
-    let shift_all = getFungalShift(seed, i);
+    let shift_all = getFungalShift(seed, i, mode);
     let shift_c = shift_all.OTHER || shift_all.NOTHING;
     let shift = {
       "base": shift_c.fromMaterials,
@@ -413,15 +413,16 @@ let full_constraints_list = [
   },*/
 ];
 
-export function init(new_seed, new_constraints) {
+export function init(new_seed, new_constraints, new_mode) {
   let world_state = new WorldState();
   let shifts = world_state.all_shifts = [];
   for(let ng=0; ng<=28; ng++) {
-    shifts.push(load_shifts_for_seed(new_seed + ng));
+    shifts.push(load_shifts_for_seed(new_seed + ng, new_mode));
   }
   world_state.constraints = new_constraints;
   let state = {
     "seed": new_seed,
+    "mode": new_mode,
     "next_shift_nr": 20,
     "next_base_ng": 0,
     "shift_nr": 20,

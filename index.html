@@ -5,12 +5,26 @@
 		<script language="javascript" type="module">
 			import { run_queue_step, init } from "./main.mjs";
 			window.addEventListener("hashchange", hash_changed);
+			let modes = ["vanilla", "apotheosis", "apotheosis_bungal", "apotheosis_bungal_spam"];
+			let mode = null;
 			function load() {
 				document.getElementById("seed").addEventListener("change", seed_changed);
 				document.getElementById("grow").addEventListener("click", add_cup);
 				document.getElementById("imagine").addEventListener("click", imagine);
 				document.getElementById("flint").addEventListener("click", apply_flint);
 				document.getElementById("recipe_nr").addEventListener("change", recipe_changed);
+				for(let mode of modes) {
+					let elt = document.getElementById("mode_" + mode);
+					elt.addEventListener("change", mode_changed);
+					if (elt.checked) {
+						mode_changed({target: elt})
+					}
+				}
+				if (mode === null) {
+					let elt = document.getElementById("mode_vanilla");
+					elt.checked = "checked";
+					mode_changed({target: elt});
+				}
 				add_cup();
 				hash_changed();
 				seed_changed();
@@ -155,7 +169,7 @@
 			var state = null;
 			function seed_changed() {
 				seed = document.getElementById("seed").valueAsNumber;
-				state = init(seed);
+				state = init(seed, [], mode);
 				imagine_real("air");
 				for(let ng_shifts of state.world_state.all_shifts) {
 					for(let shift of ng_shifts) {
@@ -379,6 +393,11 @@
 					recipe_elt.appendChild(tr);
 				}
 			}
+			function mode_changed(ev) {
+				console.log("setting mode", ev.target.value);
+				mode = ev.target.value;
+				seed_changed();
+			}
 			function td_text(text) {
 				let td = document.createElement("td");
 				td.appendChild(document.createTextNode(text));
@@ -394,11 +413,29 @@ td { font-family: monospace; width: 1em; padding: 0px; text-align: center; }
 td > p { margin-bottom: 0px; margin-top: 0px; }
 body { background: black; color: lightgray; }
 a { color: lightblue; }
+.spoiler { display: none; }
+input#allow_spoilers:checked ~ span.spoiler { display: initial; }
 		</style>
 		<title>Noita Fungal Solver</title>
 	</head>
 	<body>
 		<h1>Noita Fungal Solver</h1>
+
+		<div>
+			<input type="radio" name="mode" value="vanilla" id="mode_vanilla" />
+			<label for="mode_vanilla">Vanilla</label>
+			<input type="radio" name="mode" value="apotheosis" id="mode_apotheosis" />
+			<label for="mode_apotheosis">Apotheosis</label>
+			<input type="checkbox" id="allow_spoilers" name="allow_spoilers" value="yes"/>
+			<label for="allow_spoilers">Allow spoilers?</label>
+			<span class="spoiler">
+				<input type="radio" name="mode" value="apotheosis_bungal" id="mode_apotheosis_bungal"/>
+				<label for="mode_apotheosis">Apotheosis (Spell)</label>
+				<input type="radio" name="mode" value="apotheosis_bungal_spam" id="mode_apotheosis_bungal_spam"/>
+				<label for="mode_apotheosis">Apotheosis (Hyper)</label>
+			</span>
+		</div>
+
 
 		<div>
 			<p>For the purposes of great alchemies, the Solver may take from a curious witch five things.</p>
