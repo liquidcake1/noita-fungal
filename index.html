@@ -223,6 +223,11 @@
 					s.appendChild(document.createTextNode("air"));
 					s.style = "color: darkgray;";
 					return s;
+				} else if (material == "gold" || material == "grass_holy") {
+					let s = document.createElement("span");
+					s.appendChild(document.createTextNode(material));
+					s.style = "color: gold;";
+					return s;
 				} else {
 					return document.createTextNode(material);
 				}
