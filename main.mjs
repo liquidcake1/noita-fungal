@@ -32,6 +32,7 @@ function load_shifts_for_seed(seed, mode) {
       "base": shift_c.fromMaterials,
       "target": shift_c.toMaterial,
       "held": shift_c.useHeld,
+      "by_held": shift_all,
     };
     // Store the original state so that we can mess with it later.
     shift.original = {"held": shift.held, "from": shift.from, "to": shift.to};

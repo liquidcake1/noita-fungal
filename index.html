@@ -17,6 +17,7 @@
 			let mode = null;
 			function load() {
 				document.getElementById("seed").addEventListener("change", seed_changed);
+				document.getElementById("cycle").addEventListener("change", cycle_changed);
 				document.getElementById("grow").addEventListener("click", add_cup);
 				document.getElementById("imagine").addEventListener("click", imagine);
 				document.getElementById("flint").addEventListener("click", apply_flint);
@@ -201,6 +202,55 @@
 							imagine_real(material);
 						}
 						imagine_real(shift.target);
+					}
+				}
+				cycle_changed();
+			}
+			function make_td(text, rowspan) {
+				let td = document.createElement("td");
+				td.appendChild(document.createTextNode(text));
+				td.setAttribute("rowspan", rowspan);
+				return td;
+			}
+			function cycle_changed() {
+				let cycle = document.getElementById("cycle").valueAsNumber;
+				let tbody = document.getElementById("shifts");
+				while(tbody.childNodes.length > 0) {
+					tbody.removeChild(tbody.childNodes[0]);
+				}
+				for(let [i, shift_root] of state.world_state.all_shifts[cycle].entries()) {
+					let by_presentation = shift_root.by_held;
+					let tr = document.createElement("tr");
+					tr.appendChild(make_td(i + 1, Object.entries(by_presentation).length));
+					for (let [presentation, shift] of Object.entries(by_presentation)) {
+						tr.appendChild(make_td(presentation));
+						let sacrifices;
+						if (shift.useHeld != "from" || presentation == "NOTHING") {
+							sacrifices = shift.fromMaterials;
+						} else if (presentation == "OTHER") {
+							sacrifices = ["presentation"];
+						} else {
+							sacrifices = [presentation];
+						}
+						let mats = document.createElement("td");
+						for(let [j, material] of sacrifices.entries()) {
+							if (j > 0) {
+								mats.appendChild(document.createElement("br"));
+							}
+							mats.appendChild(document.createTextNode(material));
+						}
+						tr.appendChild(mats);
+						let product;
+						if (shift.useHeld != "to" || presentation == "NOTHING") {
+							product = shift.toMaterial;
+						} else if (presentation == "OTHER") {
+							product = "presentation";
+						} else {
+							product = presentation;
+						}
+						tr.appendChild(make_td(product));
+						tbody.appendChild(tr);
+						tr = document.createElement("tr");
 					}
 				}
 			}
@@ -431,6 +481,7 @@
 		<style>
 table { border: black solid 1px; padding: 0px; }
 th { font-family: monospace; font-weight: normal; color: lightgreen; }
+table.shifts > tbody > tr > td { border-top: 1px lightgrey solid; color: lightgreen; }
 td { font-family: monospace; width: 1em; padding: 0px; text-align: center; }
 .recipes > table > tr > td { background: lightgreen; color: darkgreen; }
 td > p { margin-bottom: 0px; margin-top: 0px; }
@@ -438,11 +489,14 @@ body { background: black; color: lightgray; }
 a { color: lightblue; }
 .spoiler { display: none; }
 input#allow_spoilers:checked ~ span.spoiler { display: initial; }
+.operation_type { display: none; }
+input#type_search:checked ~ div#search { display: initial; }
+input#type_show:checked ~ div#show { display: initial; }
 		</style>
-		<title>Noita Fungal Solver</title>
+		<title>Noita Fungal Stuff</title>
 	</head>
 	<body>
-		<h1>Noita Fungal Solver</h1>
+		<h1>Noita Fungal Stuff</h1>
 
 		<div>
 			<input type="radio" name="mode" value="vanilla" id="mode_vanilla" />
@@ -459,7 +513,16 @@ input#allow_spoilers:checked ~ span.spoiler { display: initial; }
 			</span>
 		</div>
 
+		<p>Place here, the seed of your world: <input id="seed" type="number" value=""/></p>
 
+		<div><form>
+			<input type="radio" name="mode" value="search" id="type_search" checked="true" />
+			<label for="type_search">Search</label>
+			<input type="radio" name="mode" value="show" id="type_show" />
+			<label for="type_show">Show</label>
+
+
+		<div id="search" class="operation_type">
 		<div>
 			<p>For the purposes of great alchemies, the Solver may take from a curious witch five things.</p>
 			<p>First, the master must seek and supply the Seed from which the world was grown. This will embed within the machine the means to see into the unknown.</p>
@@ -469,7 +532,6 @@ input#allow_spoilers:checked ~ span.spoiler { display: initial; }
 			<p>Finally, great time must be devoted. The machine may take many seconds to test the many realities.</p>
 		</div>
 
-		<p>Place here, the seed of your world: <input id="seed" type="number" value=""/></p>
 
 		<table id="altar">
 			<tr>
@@ -507,6 +569,21 @@ input#allow_spoilers:checked ~ span.spoiler { display: initial; }
 		</div>
 
 		<input type="button" id="flint" value="Start the fires of the calculation engine"/>
+		</div><!-- search -->
+		<div id="show" class="operation_type">
+		<p>Place here, the cycle of your world: <input id="cycle" type="number" value="0" max="28" min="0"/></p>
+		<table class="shifts">
+			<tr>
+				<th>Iteration</th>
+				<th>Presentation</th>
+				<th>Sacrifices</th>
+				<th>Product</th>
+			</tr>
+			<tbody id="shifts">
+			</tbody>
+		</table>
+		</div>
+		</form></div><!-- select -->
 
 		<h2>Boring stuff</h2>
 
