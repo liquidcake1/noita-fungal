@@ -255,7 +255,8 @@
 					for (let [presentation, shift] of Object.entries(by_presentation)) {
 						tr.appendChild(make_material_td(presentation));
 						let interpretation = "";
-						if (shift.useHeld == "from") {
+						if (presentation == "NOTHING") {
+						} else if (shift.useHeld == "from") {
 							interpretation = "Sacrifice";
 						} else if (shift.useHeld == "to") {
 							interpretation = "Product";
