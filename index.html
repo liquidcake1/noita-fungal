@@ -80,12 +80,12 @@
 				let constraints = [];
 				pray_to_gods(constraints);
 				for (let constraint of constraints) {
-					hash_state += "/";
+					hash_state += "&";
 					hash_state += constraint.base;
-					hash_state += ";";
+					hash_state += "/";
 					hash_state += constraint.target;
 					if (constraint.stain) {
-						hash_state += ";"
+						hash_state += "/"
 						hash_state += constraint.stain;
 					}
 				}
@@ -97,11 +97,11 @@
 				}
 			}
 			function restore_state(hash_state) {
-				let bits = hash_state.split("/");
+				let bits = hash_state.split("&");
 				let seed = Number.parseInt(bits.shift());
 				let constraints = [];
 				for (let bit of bits) {
-					let materials = bit.split(";");
+					let materials = bit.split("/");
 					let constraint = {
 						"base": materials[0],
 						"target": materials[1],
