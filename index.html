@@ -28,6 +28,19 @@
 				add_cup();
 				hash_changed();
 				seed_changed();
+				if (document.getElementById("seed").value == "") {
+					fetch_daily_seed();
+				}
+			}
+			function fetch_daily_seed() {
+				fetch("https://daily-seed.acidflow.stream/current_seed.txt").then(function(resp) {
+					console.log("Fetch complete.");
+					resp.text().then(function (text) {
+						document.getElementById("seed").value = parseInt(text);
+						seed_changed();
+					});
+				});
+
 			}
 			var transmutations = [];
 			var transmutation_rows = [];
@@ -168,6 +181,9 @@
 			var materials = new Set();
 			var state = null;
 			function seed_changed() {
+				if (document.getElementById("seed").value == "") {
+					return;
+				}
 				seed = document.getElementById("seed").valueAsNumber;
 				state = init(seed, [], mode);
 				imagine_real("air");
@@ -446,7 +462,7 @@ input#allow_spoilers:checked ~ span.spoiler { display: initial; }
 			<p>Finally, great time must be devoted. The machine may take many seconds to test the many realities.</p>
 		</div>
 
-		<p>Place here, the seed of your world: <input id="seed" type="number" value="0"/></p>
+		<p>Place here, the seed of your world: <input id="seed" type="number" value=""/></p>
 
 		<table id="altar">
 			<tr>
