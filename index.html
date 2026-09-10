@@ -254,6 +254,13 @@
 					tr.appendChild(make_td(i + 1, Object.entries(by_presentation).length));
 					for (let [presentation, shift] of Object.entries(by_presentation)) {
 						tr.appendChild(make_material_td(presentation));
+						let interpretation = "";
+						if (shift.useHeld == "from") {
+							interpretation = "Sacrifice";
+						} else if (shift.useHeld == "to") {
+							interpretation = "Product";
+						}
+						tr.appendChild(make_td(interpretation));
 						let sacrifices;
 						if (shift.useHeld != "from" || presentation == "NOTHING") {
 							sacrifices = shift.fromMaterials;
@@ -613,6 +620,7 @@ input#type_show:checked ~ div#show { display: initial; }
 			<tr>
 				<th>Iteration</th>
 				<th>Presentation</th>
+				<th>Interpretation</th>
 				<th>Sacrifices</th>
 				<th>Product</th>
 			</tr>
