@@ -212,6 +212,26 @@
 				td.setAttribute("rowspan", rowspan);
 				return td;
 			}
+			function make_material(material) {
+				if (material == "OTHER" || material == "presentation") {
+					let s = document.createElement("span");
+					s.appendChild(document.createTextNode("presentation"));
+					s.style = "color: salmon; font-weight: bold;";
+					return s;
+				} else if (material == "NOTHING") {
+					let s = document.createElement("span");
+					s.appendChild(document.createTextNode("air"));
+					s.style = "color: darkgray;";
+					return s;
+				} else {
+					return document.createTextNode(material);
+				}
+			}
+			function make_material_td(material) {
+				let td = document.createElement("td");
+				td.appendChild(make_material(material));
+				return td;
+			}
 			function cycle_changed() {
 				let cycle = document.getElementById("cycle").valueAsNumber;
 				let tbody = document.getElementById("shifts");
@@ -221,9 +241,14 @@
 				for(let [i, shift_root] of state.world_state.all_shifts[cycle].entries()) {
 					let by_presentation = shift_root.by_held;
 					let tr = document.createElement("tr");
+					if (i % 2 == 0) {
+						tr.className = "even";
+					} else {
+						tr.className = "odd";
+					}
 					tr.appendChild(make_td(i + 1, Object.entries(by_presentation).length));
 					for (let [presentation, shift] of Object.entries(by_presentation)) {
-						tr.appendChild(make_td(presentation));
+						tr.appendChild(make_material_td(presentation));
 						let sacrifices;
 						if (shift.useHeld != "from" || presentation == "NOTHING") {
 							sacrifices = shift.fromMaterials;
@@ -237,7 +262,7 @@
 							if (j > 0) {
 								mats.appendChild(document.createElement("br"));
 							}
-							mats.appendChild(document.createTextNode(material));
+							mats.appendChild(make_material(material));
 						}
 						tr.appendChild(mats);
 						let product;
@@ -248,9 +273,14 @@
 						} else {
 							product = presentation;
 						}
-						tr.appendChild(make_td(product));
+						tr.appendChild(make_material_td(product));
 						tbody.appendChild(tr);
 						tr = document.createElement("tr");
+						if (i % 2 == 0) {
+							tr.className = "even";
+						} else {
+							tr.className = "odd";
+						}
 					}
 				}
 			}
@@ -481,7 +511,9 @@
 		<style>
 table { border: black solid 1px; padding: 0px; }
 th { font-family: monospace; font-weight: normal; color: lightgreen; }
-table.shifts > tbody > tr > td { border-top: 1px lightgrey solid; color: lightgreen; }
+table.shifts > tbody > tr > td { color: lightgreen; }
+tr.even td { background-color: darkgreen; }
+tr.odd td { background-color: #227722; }
 td { font-family: monospace; width: 1em; padding: 0px; text-align: center; }
 .recipes > table > tr > td { background: lightgreen; color: darkgreen; }
 td > p { margin-bottom: 0px; margin-top: 0px; }
