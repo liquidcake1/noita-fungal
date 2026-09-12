@@ -40,18 +40,6 @@ function load_shifts_for_seed(seed, mode) {
   }
   return shifts;
 }
-// TODO : Check that shifts are not overwritten before use
-//shifts[1].to_held = false;
-//shifts[1].from = [ "Fake" ];
-//console.log(shifts);
-/*shifts.forEach(function(shift){
-  shift["from"].forEach(function (from) {
-    state = run_shift(state, from, shift["to"]);
-  });
-  //console.log(`After shifting ${shift["from"][0]} into ${shift["to"]}:`);
-  //print_state(state, "  ");
-  console.log("");
-});*/
 
 function print_helds(held_materials, shifts, after) {
   let state = {};
