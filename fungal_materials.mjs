@@ -227,7 +227,7 @@ export const maxShifts = {
   vanilla: 20,
   apotheosis: 20,
   apotheosis_bungal: 20,
-  apotheosis_bungal_spam: 200
+  apotheosis_bungal_spam: 200,
 };
 
 export const baseSeedY = {
