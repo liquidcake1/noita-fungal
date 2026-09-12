@@ -21,34 +21,16 @@ function print_state2(state, indent) {
   });
 }
 
-import { getFungalShift } from "./fungal.mjs";
-function load_shifts_for_seed(seed, mode) {
-  let shifts = [];
-  for(var i=0; i<20; i++) {
-    // TODO do something with everything else, this is wrong.
-    let shift_all = getFungalShift(seed, i, mode);
-    let shift_c = shift_all.OTHER || shift_all.NOTHING;
-    let shift = {
-      "base": shift_c.fromMaterials,
-      "target": shift_c.toMaterial,
-      "held": shift_c.useHeld,
-      "by_held": shift_all,
-    };
-    // Store the original state so that we can mess with it later.
-    shift.original = {"held": shift.held, "from": shift.from, "to": shift.to};
-    shifts.push(shift);
-  }
-  return shifts;
-}
+import { getFungalShifts } from "./fungal.mjs";
 import { maxShifts } from "./fungal_materials.mjs";
 
 function print_helds(held_materials, shifts, after) {
   let state = {};
   for(let i=0; i<after; i++) {
     let hold = held_materials[i];
-    let shift_from = shifts[i].base;
-    let shift_to = shifts[i].target;
-    if (shifts[i].original.held) {
+    let shift_from = shifts[i].fromMaterials;
+    let shift_to = shifts[i].toMaterial;
+    if (shifts[i].useHeld) {
       if (!hold) {
         if (hold === null) {
           console.log(`  At the ${i+1}th shift, you may hold nothing.`);
@@ -56,12 +38,12 @@ function print_helds(held_materials, shifts, after) {
           console.log(`  At the ${i+1}th shift, you MUST hold nothing.`);
         }
       } else {
-        if (shifts[i].original.held == "to") {
+        if (shifts[i].useHeld == "to") {
           shift_to = hold;
-        } else if (shifts[i].original.held == "from") {
+        } else if (shifts[i].useHeld == "from") {
           shift_from = [hold];
         }
-        console.log(`  At the ${i+1}th shift, hold ${hold} (as a "${shifts[i].original.held}" material)`);
+        console.log(`  At the ${i+1}th shift, hold ${hold} (as a "${shifts[i].useHeld}" material)`);
       }
     }
     for (let from of shift_from) {
@@ -89,11 +71,12 @@ function check_solved(job, world_state) {
   let state = {};
   let full_constraints_list = world_state.constraints;
   for (var i = 0; i < max_shifts; i++) {
-    var shift = shifts[i];
-    let base_materials = shift.base;
-    let target_material = shift.target;
-    if (shift.held && held_materials[i]) {
-      if (shift.held == "to") {
+    let shift_map = shifts[i];
+    let shift = held_materials[i] ? shift_map[held_materials[i]] || shift_map.OTHER : shift_map.NOTHING;
+    let base_materials = shift.fromMaterials;
+    let target_material = shift.toMaterial;
+    if (shift.useHeld && held_materials[i]) {
+      if (shift.useHeld == "to") {
         target_material = held_materials[i];
       } else {
         base_materials = [held_materials[i]];
@@ -136,12 +119,14 @@ function constraint_satisfied(state, constraint) {
 
 function get_shift_from_helds(shift, constraint, reverse_state, possible_states) {
   // We want to shift something from contraint.from.
-  if (shift.held == "from") {
-    //let possible_targets = possible_states[shift.target] || new Set([shift.target]);
+  if (shift === undefined) {
+    return [];
+  } else if (shift.useHeld == "from") {
+    //let possible_targets = possible_states[shift.toMaterial] || new Set([shift.toMaterial]);
     /*if (!possible_targets.has("ARBITRARY") && !possible_targets.has(constraint.target)) {
       return [];
     }*/
-    if (shift.base.includes(constraint.base)) {
+    if (shift.fromMaterials.includes(constraint.base)) {
       // If shift.from.includes(constraint.from) then we may be able to use a
       // non-held shift to satisfy another constraint. We should try both
       // with and without this modification.
@@ -151,10 +136,10 @@ function get_shift_from_helds(shift, constraint, reverse_state, possible_states)
       // material.
       return ["from"];
     }
-  } else if (shift.base.includes(constraint.base)) {
+  } else if (shift.fromMaterials.includes(constraint.base)) {
     // We can shift to "something". Either it's what we want, or we can try to
     // do something else earlier in the chain.
-    if (shift.held == "to") {
+    if (shift.useHeld == "to") {
       return [null, "to"];
     } else {
       // No choice, let it ride, but do a subsearch.
@@ -180,7 +165,7 @@ function commit_shift(shift, constraint, state, state_reverse, shift_held, held_
       target = state_reverse[target].values().next();
     }
     held_materials[i] = target;
-  } else if (shift.held) {
+  } else if (shift.useHeld) {
     // Ensure we record that we hold nothing here.
     held_materials[i] = null;
   }
@@ -236,11 +221,12 @@ function explore(solver_state, world_state) {
   let possible_states = {};
   let can_skip = false;
   for(var i = 0; i <= max_shift; i++) {
-    var shift = shifts[i];
+    var shift_map = shifts[i];
     if (held_materials[i] === undefined) {
-      var shift_from_helds = get_shift_from_helds(shift, constraint, state_reverse, possible_states);
+      var shift_from_helds = get_shift_from_helds(shift_map.OTHER, constraint, state_reverse, possible_states);
 
       for(let shift_held of shift_from_helds) {
+        let shift = shift_map[shift_held] || shift_map.OTHER;
         commit_shift(shift, constraint, state, state_reverse, shift_held, held_materials, i);
         
         if (constraint.stain) {
@@ -253,7 +239,7 @@ function explore(solver_state, world_state) {
           }
           constraints_list.splice(0, 0, stain_constraint);
         }
-        let shift_to = shift.target;
+        let shift_to = shift.toMaterial;
         //console.log(i, shift_held, held_materials);
         if (shift_held == "to" && held_materials[i]) {
           shift_to = held_materials[i];
@@ -264,7 +250,7 @@ function explore(solver_state, world_state) {
           // It's actually OK for our source material to have been shifted; we
           // can just hold the (transformed) material.
           var new_constraint = {
-            "base": shift.target,
+            "base": shift.toMaterial,
             "target": constraint.target,
             "min_shift": 0,
             "max_shift": i - 1,
@@ -286,15 +272,17 @@ function explore(solver_state, world_state) {
       }
     }
 
+    let shift = held_materials[i] ? shift_map[held_materials[i]] || shift_map.OTHER : shift_map.NOTHING;
+
     // Run the shift with our choice of held materials.
     // We don't test this. We don't need to consider any "from" material other
     // than a sacrifice.
     // If we held a list of "forced" shifts, we could understand which
     // materials were rescuable.
-    let base_materials = shift.base;
-    let target_material = shift.target;
-    if (shift.held && held_materials[i]) {
-      if (shift.held == "to") {
+    let base_materials = shift.fromMaterials;
+    let target_material = shift.toMaterial;
+    if (shift.useHeld && held_materials[i]) {
+      if (shift.useHeld == "to") {
         target_material = held_materials[i];
       } else {
         base_materials = [held_materials[i]];
@@ -312,7 +300,7 @@ function explore(solver_state, world_state) {
     if (shifting_away) {
       base_materials = [];
     }
-    /*if (shift.held == "from" && held_materials[i] === undefined) {
+    /*if (shift.useHeld == "from" && held_materials[i] === undefined) {
       if (shifting_away && target_material !== constraint.target && state_reverse[constraint.target] === undefined) {
         // We're going to delete it! Do something else!
         //held_materials[i] = "SACRIFICE" + i;
@@ -339,12 +327,12 @@ function explore(solver_state, world_state) {
     if (false) {
       // This code DEFINITELY breaks the algorithm; we find less good optimal solutions for
       // #1296487564/magic_liquid_polymorph;water_salt/cheese_static;blood_fungi
-      let possible_bases = new Array(...shift.base);
-      if (shift.held == "from") {
+      let possible_bases = new Array(...shift.fromMaterials);
+      if (shift.useHeld == "from") {
         possible_bases.push("ARBITRARY");
       }
-      let possible_targets = [shift.target];
-      if (shift.held == "to") {
+      let possible_targets = [shift.toMaterial];
+      if (shift.useHeld == "to") {
         possible_targets.push("ARBITRARY");
       }
       let shifted_possible_targets = new Set();
@@ -407,7 +395,7 @@ export function init(new_seed, new_constraints, new_mode) {
   let world_state = new WorldState();
   let shifts = world_state.all_shifts = [];
   for(let ng=0; ng<=28; ng++) {
-    shifts.push(load_shifts_for_seed(new_seed + ng, new_mode));
+    shifts.push(getFungalShifts(new_seed, ng, new_mode));
   }
   world_state.constraints = new_constraints;
   let state = {
@@ -450,9 +438,9 @@ export function run_queue_step(queue_state) {
     let froms = 0;
     let tos = 0;
     for(let shift of world_state.shifts) {
-      if(shift.held == "from") {
+      if(shift.useHeld == "from") {
         froms += 1;
-      } else if (shift.held == "to") {
+      } else if (shift.useHeld == "to") {
         tos += 1;
       }
     }

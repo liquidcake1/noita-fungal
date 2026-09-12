@@ -201,11 +201,13 @@
 				state = init(seed, [], mode);
 				imagine_real("air");
 				for(let ng_shifts of state.world_state.all_shifts) {
-					for(let shift of ng_shifts) {
-						for(let material of shift.base) {
-							imagine_real(material);
+					for(let shift_map of ng_shifts) {
+						for(let [_mat, shift] of Object.entries(shift_map)) {
+							for(let material of shift.fromMaterials) {
+								imagine_real(material);
+							}
+							imagine_real(shift.toMaterial);
 						}
-						imagine_real(shift.target);
 					}
 				}
 				cycle_changed();
@@ -247,8 +249,7 @@
 				while(tbody.childNodes.length > 0) {
 					tbody.removeChild(tbody.childNodes[0]);
 				}
-				for(let [i, shift_root] of state.world_state.all_shifts[cycle].entries()) {
-					let by_presentation = shift_root.by_held;
+				for(let [i, by_presentation] of state.world_state.all_shifts[cycle].entries()) {
 					let tr = document.createElement("tr");
 					if (i % 2 == 0) {
 						tr.className = "even";
@@ -483,19 +484,20 @@
 					}
 					let tr = document.createElement("tr");
 					let material = held_materials[i];
+					let shift = material ? shifts[i][material] || shifts[i].OTHER : shifts[i].NOTHING;
 					if (!material) {
 						// null means unused; undefined means forced
 						material = "air";
 					}
 					tr.appendChild(td_text(material));
-					let sacrifices = shifts[i].base;
-					let product = shifts[i].target;
+					let sacrifices = shift.fromMaterials;
+					let product = shift.toMaterial;
 					if (material == "air") {
 						tr.appendChild(td_text(""));
-					} else if (shifts[i].held == "from") {
+					} else if (shift.useHeld == "from") {
 						tr.appendChild(td_text("Sacrifice"));
 						sacrifices = [material];
-					} else if (shifts[i].held == "to") {
+					} else if (shift.useHeld == "to") {
 						tr.appendChild(td_text("Product"));
 						product = material;
 					}
