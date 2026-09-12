@@ -12,6 +12,10 @@
 				mod = mod_v;
 				load();
 			});
+			let maxShifts;
+			import("./fungal_materials.mjs").then(function(mod_v) {
+				maxShifts = mod_v.maxShifts;
+			});
 			window.addEventListener("hashchange", hash_changed);
 			let modes = ["vanilla", "apotheosis", "apotheosis_bungal", "apotheosis_bungal_spam"];
 			let mode = null;
@@ -393,7 +397,7 @@
 				let message = "";
 				if (!state.finished) {
 					message += `Studying the properties of ${game_name}`;
-					if (state.shift_nr < 20) {
+					if (state.shift_nr < maxShifts[mode]) {
 						message += `; moving to ${game_name}+ after ${state.shift_nr} shifts. `;
 					} else {
 						message += ". ";
@@ -446,7 +450,7 @@
 				} else {
 					world = {};
 					held_materials = [];
-					shift_nr = 20;
+					shift_nr = maxShifts[mode];
 					length = 0;
 					shifts = [];
 				}

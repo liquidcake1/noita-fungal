@@ -424,9 +424,9 @@ export function init(new_seed, new_constraints, new_mode) {
   let state = {
     "seed": new_seed,
     "mode": new_mode,
-    "next_shift_nr": 20,
+    "next_shift_nr": maxShifts[new_mode],
     "next_base_ng": 0,
-    "shift_nr": 20,
+    "shift_nr": maxShifts[new_mode],
     "base_ng": 0,
     "jobs": [],
     "seen_jobs": new Set(),
@@ -452,7 +452,7 @@ export function run_queue_step(queue_state) {
     queue_state.shift_nr = shift_nr;
     queue_state.base_ng = ng;
     if (shift_nr == 1) {
-      queue_state.next_shift_nr = 20;
+      queue_state.next_shift_nr = world_state.all_shifts[0].length;
       queue_state.next_base_ng++;
     } else {
       queue_state.next_shift_nr--;
