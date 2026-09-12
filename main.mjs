@@ -40,6 +40,7 @@ function load_shifts_for_seed(seed, mode) {
   }
   return shifts;
 }
+import { maxShifts } from "./fungal_materials.mjs";
 
 function print_helds(held_materials, shifts, after) {
   let state = {};
